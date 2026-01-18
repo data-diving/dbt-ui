@@ -1,0 +1,47 @@
+version: '3.8'
+
+# Shared environment variables used by both services
+x-shared-env: &shared-env
+  # Authentication credentials (optional - if not set, auth is disabled)
+  DBT_UI__BACKEND_USER: ${DBT_UI__BACKEND_USER:-}
+  DBT_UI__BACKEND_PASSWORD: ${DBT_UI__BACKEND_PASSWORD:-}
+  # Frontend lineage graph settings
+  DBT_UI__FRONTEND_LINEAGE_MAX_NODES: ${DBT_UI__FRONTEND_LINEAGE_MAX_NODES:-200}
+  # MetaDV feature toggle (default: true - enabled)
+  DBT_UI__METADV_ENABLED: ${DBT_UI__METADV_ENABLED:-true}
+  # Git credentials cookie max age in seconds (default: 30 days)
+  DBT_UI__BACKEND_GIT_CREDS_COOKIE_MAX_AGE: ${DBT_UI__BACKEND_GIT_CREDS_COOKIE_MAX_AGE:-2592000}
+  # Backend-specific
+  PYTHONUNBUFFERED: 1
+  # Frontend URL for CORS (default: http://localhost for Docker)
+  DBT_UI__FRONTEND_URL: ${DBT_UI__FRONTEND_URL:-http://localhost}
+  # Backend URL for nginx proxy (default: http://backend:8000)
+  DBT_UI__BACKEND_URL: ${DBT_UI__BACKEND_URL:-http://backend:8000}
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount for git repositories (cloned or existing local repos)
+      - ${DBT_UI__GIT_REPOS_PATH:-./git-repos}:/home/dbtui/git-repos
+    environment:
+      <<: *shared-env
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+      args:
+        # Build-time args for Vite (baked into the frontend bundle)
+        DBT_UI__FRONTEND_LINEAGE_MAX_NODES: ${DBT_UI__FRONTEND_LINEAGE_MAX_NODES:-200}
+        DBT_UI__METADV_ENABLED: ${DBT_UI__METADV_ENABLED:-true}
+    ports:
+      - "80:80"
+    environment:
+      <<: *shared-env
+    depends_on:
+      - backend

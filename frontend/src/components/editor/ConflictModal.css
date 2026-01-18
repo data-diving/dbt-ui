@@ -1,0 +1,155 @@
+.conflict-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.conflict-modal {
+  background-color: #252526;
+  border: 1px solid #3c3c3c;
+  border-radius: 6px;
+  width: 90%;
+  max-width: 1200px;
+  height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.conflict-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #3c3c3c;
+}
+
+.conflict-modal-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #cccccc;
+}
+
+.conflict-icon {
+  color: #cca700;
+}
+
+.conflict-modal-content {
+  padding: 16px;
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.conflict-modal-content p {
+  margin: 0 0 12px 0;
+  color: #cccccc;
+  font-size: 13px;
+  line-height: 1.5;
+  flex-shrink: 0;
+}
+
+.conflict-diff-container {
+  display: flex;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+}
+
+.conflict-diff-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid #3c3c3c;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.conflict-diff-header {
+  background-color: #333333;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #cccccc;
+  border-bottom: 1px solid #3c3c3c;
+  flex-shrink: 0;
+}
+
+.conflict-diff-pane:first-child .conflict-diff-header {
+  color: #f48771;
+}
+
+.conflict-diff-pane:last-child .conflict-diff-header {
+  color: #89d185;
+}
+
+.conflict-diff-editor {
+  flex: 1;
+  min-height: 0;
+}
+
+.conflict-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid #3c3c3c;
+}
+
+.conflict-modal-btn {
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  border: none;
+  white-space: nowrap;
+}
+
+.conflict-modal-cancel {
+  background-color: transparent;
+  color: #cccccc;
+  border: 1px solid #4c4c4c;
+}
+
+.conflict-modal-cancel:hover {
+  background-color: #3c3c3c;
+}
+
+.conflict-modal-incoming {
+  background-color: #6e3a3a;
+  color: #ffffff;
+}
+
+.conflict-modal-incoming:hover {
+  background-color: #8a4a4a;
+}
+
+.conflict-modal-mine {
+  background-color: #0e639c;
+  color: #ffffff;
+}
+
+.conflict-modal-mine:hover {
+  background-color: #1177bb;
+}
+
+.conflict-modal-conflicts {
+  background-color: #6c4e00;
+  color: #ffffff;
+}
+
+.conflict-modal-conflicts:hover {
+  background-color: #8a6500;
+}

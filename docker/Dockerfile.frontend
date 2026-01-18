@@ -1,0 +1,47 @@
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files first for better caching
+COPY frontend/package*.json ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy frontend source code
+COPY frontend/ .
+
+# Build arguments for Vite (baked in at build time)
+ARG DBT_UI__FRONTEND_LINEAGE_MAX_NODES=200
+ARG DBT_UI__METADV_ENABLED=true
+
+# Build the application with empty API URL (nginx will proxy /api/ to backend)
+ENV VITE_API_URL=""
+ENV VITE_DBT_UI__FRONTEND_LINEAGE_MAX_NODES=${DBT_UI__FRONTEND_LINEAGE_MAX_NODES}
+ENV VITE_DBT_UI__METADV_ENABLED=${DBT_UI__METADV_ENABLED}
+RUN npm run build
+
+# Generate licenses
+RUN npx license-checker --production --markdown --out /app/LICENSES-FRONTEND.md
+
+# Production stage with nginx
+FROM nginx:alpine
+
+# Copy built assets from builder stage
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Copy license file
+COPY --from=builder /app/LICENSES-FRONTEND.md /usr/share/nginx/html/
+
+# Copy nginx config template (will be processed with envsubst at runtime)
+COPY docker/nginx.conf /etc/nginx/templates/default.conf.template
+
+# Default backend URL (can be overridden via environment variable)
+ENV DBT_UI__BACKEND_URL=http://backend:8000
+
+# Expose port
+EXPOSE 80
+
+# Use envsubst to substitute environment variables in nginx config at startup
+# Note: nginx:alpine image has built-in support for /etc/nginx/templates/*.template files
+CMD ["nginx", "-g", "daemon off;"]

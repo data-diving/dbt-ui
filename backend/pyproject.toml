@@ -1,0 +1,18 @@
+[project]
+name = "dbt-ui-backend"
+version = "0.1.0"
+description = "dbt-ui Backend API"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi==0.109.0",
+    "uvicorn[standard]==0.27.0",
+    "pydantic==2.5.3",
+    "python-multipart==0.0.6",
+    "pyyaml>=6.0",
+    "packaging>=23.0",
+    "metadv>=0.1.0",
+]
+
+[tool.uv]
+# This is not a package, just a dependency list
+package = false

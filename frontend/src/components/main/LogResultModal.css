@@ -1,0 +1,129 @@
+.log-result-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.log-result-modal {
+  background-color: #252526;
+  border: 1px solid #3c3c3c;
+  border-radius: 6px;
+  width: 810px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.log-result-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #3c3c3c;
+  border-radius: 6px 6px 0 0;
+}
+
+.log-result-modal-header.success {
+  background-color: rgba(40, 167, 69, 0.15);
+  color: #28a745;
+}
+
+.log-result-modal-header.error {
+  background-color: rgba(220, 53, 69, 0.15);
+  color: #dc3545;
+}
+
+.log-result-modal-header h3 {
+  flex: 1;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: inherit;
+  text-align: left;
+}
+
+.log-result-modal-content {
+  padding: 16px;
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+.log-result-message {
+  margin: 0 0 12px 0;
+  color: #cccccc;
+  font-size: 14px;
+}
+
+.log-result-output {
+  border: 1px solid #3c3c3c;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.log-result-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid #3c3c3c;
+}
+
+.log-result-modal-copy {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid #3c3c3c;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  background-color: transparent;
+  color: #cccccc;
+}
+
+.log-result-modal-copy:hover {
+  background-color: #3c3c3c;
+}
+
+.log-result-modal-ok {
+  padding: 8px 24px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  background-color: #0e639c;
+  color: white;
+}
+
+.log-result-modal-ok:hover {
+  background-color: #1177bb;
+}
+
+.log-result-modal-ok:focus {
+  outline: 2px solid #007acc;
+  outline-offset: 2px;
+}
+
+.log-result-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #858585;
+  font-size: 13px;
+  background-color: #1e1e1e;
+}

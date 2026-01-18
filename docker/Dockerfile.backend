@@ -1,0 +1,49 @@
+FROM python:3.11-slim
+
+# Create non-root user
+RUN groupadd --gid 1000 dbtui && \
+    useradd --uid 1000 --gid dbtui --shell /bin/bash --create-home dbtui
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv (fast Python package installer for venv creation) as root first
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    cp /root/.local/bin/uv /usr/local/bin/uv && \
+    chmod +x /usr/local/bin/uv
+
+# Copy project files for uv
+COPY backend/pyproject.toml backend/uv.lock ./
+
+# Install Python dependencies using uv with lock file (to system Python)
+RUN uv export --frozen --no-hashes > requirements.txt && \
+    uv pip install --system -r requirements.txt
+
+# Generate licenses
+RUN uv pip install --system pip-licenses && \
+    pip-licenses --format=markdown --output-file=/app/LICENSES-BACKEND.md && \
+    uv pip uninstall --system pip-licenses prettytable wcwidth
+
+# Copy backend source code
+COPY backend/ .
+
+# Copy project license
+COPY LICENSE /app/
+
+# Create git-repos directory and set ownership
+RUN mkdir -p /home/dbtui/git-repos && \
+    chown -R dbtui:dbtui /app /home/dbtui/git-repos
+
+# Switch to non-root user
+USER dbtui
+
+# Expose port
+EXPOSE 8000
+
+# Run the backend server
+CMD ["python", "main.py"]

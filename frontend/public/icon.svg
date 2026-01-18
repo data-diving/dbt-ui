@@ -1,0 +1,47 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">dbt Web UI Icon</title>
+  <desc id="desc">An icon representing a browser window with a hexagon and connected nodes symbolizing dbt-core in a web interface.</desc>
+
+  <!-- Background -->
+  <rect x="8" y="8" width="112" height="112" rx="24" fill="#0F172A"/>
+
+  <!-- Browser frame -->
+  <rect x="20" y="24" width="88" height="72" rx="10" fill="#020617"/>
+  <rect x="20" y="24" width="88" height="18" rx="10" fill="#111827"/>
+  <circle cx="30" cy="33" r="3" fill="#F97316"/>
+  <circle cx="40" cy="33" r="3" fill="#FACC15"/>
+  <circle cx="50" cy="33" r="3" fill="#22C55E"/>
+
+  <!-- Address bar -->
+  <rect x="60" y="29" width="38" height="8" rx="4" fill="#1F2937"/>
+
+  <!-- Sidebar (left panel) -->
+  <rect x="26" y="46" width="18" height="44" rx="6" fill="#020617" stroke="#1F2937" stroke-width="1.5"/>
+  <rect x="30" y="50" width="10" height="4" rx="2" fill="#374151"/>
+  <rect x="30" y="58" width="10" height="4" rx="2" fill="#374151"/>
+  <rect x="30" y="66" width="10" height="4" rx="2" fill="#374151"/>
+  <rect x="30" y="74" width="10" height="4" rx="2" fill="#374151"/>
+  <rect x="30" y="82" width="10" height="4" rx="2" fill="#374151"/>
+
+  <!-- Main content panel -->
+  <rect x="50" y="46" width="52" height="44" rx="8" fill="#020617" stroke="#1F2937" stroke-width="1.5"/>
+
+  <!-- dbt-like hexagon -->
+  <g transform="translate(76 68)">
+    <polygon points="0,-16 13,-8 13,8 0,16 -13,8 -13,-8" fill="#F97316"/>
+    <!-- Internal nodes -->
+    <circle cx="-5" cy="-2" r="2" fill="#0F172A"/>
+    <circle cx="6" cy="-6" r="2" fill="#0F172A"/>
+    <circle cx="4" cy="6" r="2" fill="#0F172A"/>
+
+    <!-- Connections -->
+    <path d="M -5 -2 L 6 -6" stroke="#0F172A" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M -5 -2 L 4 6" stroke="#0F172A" stroke-width="1.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- Bottom bars (logs / lineage feel) -->
+  <rect x="56" y="82" width="16" height="4" rx="2" fill="#16A34A"/>
+  <rect x="76" y="82" width="10" height="4" rx="2" fill="#4B5563"/>
+  <rect x="90" y="82" width="8" height="4" rx="2" fill="#4B5563"/>
+
+</svg>

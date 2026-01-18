@@ -1,0 +1,91 @@
+.data-table {
+  height: 100%;
+  width: 100%;
+  overflow: auto;
+  background-color: #1e1e1e;
+}
+
+.data-table-wrapper {
+  padding: 16px;
+}
+
+.data-table-content {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  font-size: 13px;
+  background-color: #252526;
+}
+
+.data-table-content thead {
+  position: sticky;
+  top: 0;
+  background-color: #2d2d30;
+  z-index: 10;
+}
+
+.data-table-content th {
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #cccccc;
+  border: 1px solid #3c3c3c;
+  background-color: #2d2d30;
+  white-space: nowrap;
+}
+
+.data-table-content td {
+  padding: 6px 12px;
+  border: 1px solid #3c3c3c;
+  color: #d4d4d4;
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.data-table-content tbody tr:hover {
+  background-color: #2a2d2e;
+}
+
+.data-table-content .row-number-header,
+.data-table-content .row-number {
+  width: 50px;
+  min-width: 50px;
+  text-align: center;
+  color: #858585;
+  background-color: #2d2d30;
+  font-weight: normal;
+  user-select: none;
+}
+
+.data-table-content .row-number {
+  background-color: #252526;
+}
+
+.data-table-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #858585;
+  font-size: 14px;
+}
+
+.data-table::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.data-table::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+.data-table::-webkit-scrollbar-thumb {
+  background: #424242;
+  border-radius: 5px;
+}
+
+.data-table::-webkit-scrollbar-thumb:hover {
+  background: #4e4e4e;
+}

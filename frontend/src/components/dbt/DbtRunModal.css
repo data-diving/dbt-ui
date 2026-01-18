@@ -1,0 +1,173 @@
+.dbt-run-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.dbt-run-modal {
+  background-color: #252526;
+  border: 1px solid #3c3c3c;
+  border-radius: 6px;
+  width: 450px;
+  max-width: 90%;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.dbt-run-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #3c3c3c;
+}
+
+.dbt-run-modal-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #cccccc;
+}
+
+.dbt-run-modal-content {
+  padding: 16px;
+}
+
+.dbt-run-modal-content label {
+  display: block;
+  font-size: 12px;
+  color: #858585;
+  margin-bottom: 8px;
+}
+
+.dbt-run-modal-content input {
+  width: 100%;
+  padding: 8px 12px;
+  background-color: #3c3c3c;
+  border: 1px solid #4c4c4c;
+  border-radius: 4px;
+  color: #cccccc;
+  font-size: 13px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  box-sizing: border-box;
+}
+
+.dbt-run-modal-content input:focus {
+  outline: none;
+  border-color: #007acc;
+}
+
+.dbt-run-modal-content input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.dbt-run-modal-error {
+  color: #f48771;
+  font-size: 12px;
+  margin-top: 8px;
+  margin-bottom: 0;
+}
+
+.dbt-run-modal-hint {
+  color: #858585;
+  font-size: 11px;
+  margin-top: 12px;
+  margin-bottom: 0;
+  line-height: 1.6;
+}
+
+.dbt-run-modal-hint code {
+  background-color: #3c3c3c;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  color: #d4d4d4;
+}
+
+.dbt-run-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid #3c3c3c;
+}
+
+.dbt-run-modal-cancel,
+.dbt-run-modal-run {
+  padding: 6px 16px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  border: none;
+}
+
+.dbt-run-modal-cancel {
+  background-color: transparent;
+  color: #cccccc;
+  border: 1px solid #4c4c4c;
+}
+
+.dbt-run-modal-cancel:hover:not(:disabled) {
+  background-color: #3c3c3c;
+}
+
+.dbt-run-modal-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dbt-run-modal-run {
+  background-color: #0e639c;
+  color: #ffffff;
+}
+
+.dbt-run-modal-run:hover:not(:disabled) {
+  background-color: #1177bb;
+}
+
+.dbt-run-modal-run:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Full Refresh checkbox */
+.dbt-run-modal-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 16px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #cccccc;
+}
+
+.dbt-run-modal-checkbox span {
+  margin-left: 2px;
+}
+
+.dbt-run-modal-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: #cccccc;
+}
+
+.dbt-run-modal-checkbox.checked {
+  color: #f14c4c;
+}
+
+.dbt-run-modal-checkbox.checked input[type="checkbox"] {
+  accent-color: #f14c4c;
+}
+
+.dbt-run-modal-checkbox input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+}
