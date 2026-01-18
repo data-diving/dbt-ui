@@ -2,6 +2,9 @@
 
 A modern web-based user interface for dbt-core projects.
 
+<img width="3316" height="2316" alt="CleanShot 2026-01-18 at 22 21 32@2x" src="https://github.com/user-attachments/assets/9208b7b1-2cc1-4d1e-bdbf-22a069397656" />
+
+
 ## Quick Start with Docker
 
 The easiest way to run dbt UI is using Docker:
