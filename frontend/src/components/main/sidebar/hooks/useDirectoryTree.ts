@@ -16,7 +16,6 @@ interface UseDirectoryTreeResult {
   loadDirectoryTree: () => Promise<void>
   loadFolderChildren: (folderPath: string) => Promise<TreeNode[]>
   toggleNode: (path: string, node: TreeNode) => void
-  refreshTreeWithExpandedFolders: () => Promise<void>
 }
 
 export function useDirectoryTree(projectPath: string): UseDirectoryTreeResult {
@@ -42,6 +41,16 @@ export function useDirectoryTree(projectPath: string): UseDirectoryTreeResult {
         const convertedTree = data.children.map(convertApiNodeToTreeNode)
         setTree(convertedTree)
         console.log('[Sidebar] Loaded root directory in', (performance.now() - startTime).toFixed(2), 'ms')
+
+        // Reload children for expanded folders
+        for (const folderPath of expandedNodes) {
+          const children = await loadFolderChildren(folderPath)
+          setTree((prevTree: TreeNode[]) => updateNodeInTree(prevTree, folderPath, n => ({
+            ...n,
+            children,
+            hasChildren: children.length > 0
+          })))
+        }
       }
     } catch (err) {
       console.error('Error loading directory tree:', err)
@@ -95,18 +104,6 @@ export function useDirectoryTree(projectPath: string): UseDirectoryTreeResult {
     }
   }
 
-  const refreshTreeWithExpandedFolders = async () => {
-    await loadDirectoryTree()
-    for (const folderPath of expandedNodes) {
-      const children = await loadFolderChildren(folderPath)
-      setTree(prevTree => updateNodeInTree(prevTree, folderPath, n => ({
-        ...n,
-        children,
-        hasChildren: children.length > 0
-      })))
-    }
-  }
-
   return {
     tree,
     setTree,
@@ -116,7 +113,6 @@ export function useDirectoryTree(projectPath: string): UseDirectoryTreeResult {
     setExpandedNodes,
     loadDirectoryTree,
     loadFolderChildren,
-    toggleNode,
-    refreshTreeWithExpandedFolders
+    toggleNode
   }
 }

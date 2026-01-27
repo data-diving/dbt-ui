@@ -1,19 +1,16 @@
 // Hook for file operations (create, rename, delete, restore, move)
 
 import { apiUrl, apiFetch } from '../../../../config/api'
-import { TreeNode } from '../types'
-import { markNodeAsDeleted, removeNodeFromTree, isPackagesFile } from '../utils'
+import { isPackagesFile } from '../utils'
 
 interface UseFileOperationsProps {
   projectPath: string
-  tree: TreeNode[]
-  setTree: React.Dispatch<React.SetStateAction<TreeNode[]>>
   selectedFile: string | null
   selectedIsFolder: boolean
   onFileSelect: (file: string) => void
   onRefreshModifiedFiles?: () => void
   onPackagesFileChanged?: () => void
-  loadDirectoryTree: () => Promise<void>
+  onTreeRefreshNeeded: () => Promise<void>
   checkManifest: () => Promise<void>
 }
 
@@ -27,14 +24,12 @@ interface UseFileOperationsResult {
 
 export function useFileOperations({
   projectPath,
-  tree,
-  setTree,
   selectedFile,
   selectedIsFolder,
   onFileSelect,
   onRefreshModifiedFiles,
   onPackagesFileChanged,
-  loadDirectoryTree,
+  onTreeRefreshNeeded,
   checkManifest
 }: UseFileOperationsProps): UseFileOperationsResult {
 
@@ -62,7 +57,7 @@ export function useFileOperations({
       if (response.ok) {
         const data = await response.json()
         console.log(`Created file: ${data.file_path}`)
-        await loadDirectoryTree()
+        await onTreeRefreshNeeded()
         onFileSelect(data.file_path)
         if (onRefreshModifiedFiles) {
           onRefreshModifiedFiles()
@@ -96,7 +91,7 @@ export function useFileOperations({
       if (response.ok) {
         const data = await response.json()
         console.log(`Renamed ${itemType}: ${selectedFile} -> ${data.new_path}`)
-        await loadDirectoryTree()
+        await onTreeRefreshNeeded()
         onFileSelect(data.new_path)
         if (onRefreshModifiedFiles) {
           onRefreshModifiedFiles()
@@ -156,20 +151,7 @@ export function useFileOperations({
       if (response.ok) {
         console.log(`Deleted ${itemType}: ${selectedFile}, isGitTracked: ${isGitTracked}`)
 
-        if (selectedIsFolder) {
-          console.log(`Reloading tree after folder deletion: ${selectedFile}`)
-          await loadDirectoryTree()
-        } else if (isGitTracked) {
-          console.log(`Marking as deleted: ${selectedFile}`)
-          setTree((prevTree: TreeNode[]) => {
-            const newTree = markNodeAsDeleted(prevTree, selectedFile)
-            console.log('Tree after marking deleted:', JSON.stringify(newTree, null, 2))
-            return newTree
-          })
-        } else {
-          console.log(`Removing from tree: ${selectedFile}`)
-          setTree((prevTree: TreeNode[]) => removeNodeFromTree(prevTree, selectedFile))
-        }
+        await onTreeRefreshNeeded()
 
         onFileSelect('')
         if (onRefreshModifiedFiles) {
@@ -202,7 +184,7 @@ export function useFileOperations({
 
       if (response.ok) {
         console.log(`Restored file: ${deletedFile}`)
-        await loadDirectoryTree()
+        await onTreeRefreshNeeded()
         onFileSelect(deletedFile)
         if (onRefreshModifiedFiles) {
           onRefreshModifiedFiles()
@@ -236,7 +218,7 @@ export function useFileOperations({
 
       if (response.ok) {
         console.log(`Moved: ${sourcePath} -> ${newPath}`)
-        await loadDirectoryTree()
+        await onTreeRefreshNeeded()
         onFileSelect(newPath)
         if (onRefreshModifiedFiles) {
           onRefreshModifiedFiles()
