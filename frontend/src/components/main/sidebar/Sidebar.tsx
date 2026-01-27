@@ -80,8 +80,7 @@ function Sidebar({
     setExpandedNodes,
     loadDirectoryTree,
     loadFolderChildren,
-    toggleNode,
-    refreshTreeWithExpandedFolders
+    toggleNode
   } = useDirectoryTree(projectPath)
 
   // File operations hook
@@ -93,14 +92,12 @@ function Sidebar({
     handleMoveFile
   } = useFileOperations({
     projectPath,
-    tree,
-    setTree,
     selectedFile,
     selectedIsFolder,
     onFileSelect,
     onRefreshModifiedFiles,
     onPackagesFileChanged,
-    loadDirectoryTree,
+    onTreeRefreshNeeded: loadDirectoryTree,
     checkManifest
   })
 
@@ -133,14 +130,14 @@ function Sidebar({
   useEffect(() => {
     if (compilationTrigger && compilationTrigger > 0) {
       checkManifest()
-      refreshTreeWithExpandedFolders()
+      loadDirectoryTree()
     }
   }, [compilationTrigger])
 
   // Refresh when refreshTrigger changes
   useEffect(() => {
     if (refreshTrigger && refreshTrigger > 0) {
-      refreshTreeWithExpandedFolders()
+      loadDirectoryTree()
     }
   }, [refreshTrigger])
 
