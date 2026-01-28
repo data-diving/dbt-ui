@@ -51,6 +51,10 @@ This application consists of two parts:
 
 **Note**: Only git-based dbt projects are supported. The project must be a git repository.
 
+## Want to Contribute?
+
+Like `dbt-ui` and want to help make it even better? Check out our **[Contributing Guide](CONTRIBUTING.md)** to get started with discussions, issues, and pull requests. Your contributions help improve the experience for everyone!
+
 ## Project Structure
 
 ```
