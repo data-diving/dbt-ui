@@ -24,16 +24,8 @@ COPY backend/pyproject.toml backend/uv.lock ./
 RUN uv export --frozen --no-hashes > requirements.txt && \
     uv pip install --system -r requirements.txt
 
-# Generate licenses
-RUN uv pip install --system pip-licenses && \
-    pip-licenses --format=markdown --output-file=/app/LICENSES-BACKEND.md && \
-    uv pip uninstall --system pip-licenses prettytable wcwidth
-
 # Copy backend source code
 COPY backend/ .
-
-# Copy project license
-COPY LICENSE /app/
 
 # Create git-repos directory and set ownership
 RUN mkdir -p /home/dbtui/git-repos && \
