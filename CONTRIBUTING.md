@@ -31,14 +31,14 @@ Once a discussion reaches a clear conclusion:
   - Why it matters,
   - And what the next steps are.
 
-Each issue should represent a concrete, actionable item — whether that’s fixing a confirmed bug or adding an agreed-upon feature.
+Each issue should represent a concrete, actionable item — whether that’s fixing a confirmed bug or adding an agreed-upon feature. Using issue template is mandatory when opening an issue. Issues created without a template will be closed.
 
 ## Step 3: Submit a Pull Request
 
 When you’re ready to contribute code:
 
 1. Fork the repository and create a topic branch from `main`.
-2. Make your changes and include tests if applicable.
+2. Make your changes and include tests if applicable. It is important for each single commit in Pull Request to have less than 150 lines of code (deletions+insertions in total) so that it can be properly reviewed by a human in a reasonable time.
 3. Verify that your pull request **links to a confirmed issue** using a GitHub keyword (e.g. `Fixes #123` or `Closes #456`).
 
 This ensures every PR corresponds to an approved item and keeps the development process transparent.
