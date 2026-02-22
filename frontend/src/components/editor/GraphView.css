@@ -202,6 +202,69 @@
   display: block;
 }
 
+/* Lineage selector filter */
+.lineage-filter {
+  display: flex;
+  align-items: center;
+  position: relative;
+  flex: 1;
+  min-width: 140px;
+  max-width: 280px;
+}
+
+.lineage-filter-input {
+  width: 100%;
+  padding: 2px 20px 2px 20px;
+  background-color: #3c3c3c;
+  border: 1px solid #3c3c3c;
+  border-radius: 3px;
+  color: #cccccc;
+  font-size: 11px;
+  outline: none;
+  box-sizing: border-box;
+  height: 20px;
+}
+
+.lineage-filter-input::placeholder {
+  color: #555;
+}
+
+.lineage-filter-input:focus {
+  border-color: #007acc;
+}
+
+.lineage-filter-input.has-value {
+  border-color: #4ec9b0;
+  color: #ffffff;
+}
+
+.lineage-filter-icon {
+  position: absolute;
+  left: 5px;
+  color: #666;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  line-height: 0;
+}
+
+.lineage-filter-clear {
+  position: absolute;
+  right: 4px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: #666;
+  display: flex;
+  align-items: center;
+  line-height: 0;
+}
+
+.lineage-filter-clear:hover {
+  color: #cccccc;
+}
+
 /* MetaDV button styling */
 .metadv-button {
   background-color: #2d5a3d;

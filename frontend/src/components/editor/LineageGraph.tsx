@@ -29,6 +29,95 @@ interface LineageGraphProps {
   enabled?: boolean
   upstreamDepth?: number
   downstreamDepth?: number
+  selectorFilter?: string
+}
+
+/**
+ * Parse a dbt-style selector string and return the set of node names that match.
+ *
+ * Supports:
+ *   model_name          – substring match on node name
+ *   +model_name         – include upstream ancestors (up to upstreamDepth)
+ *   model_name+         – include downstream descendants (up to downstreamDepth)
+ *   +model_name+        – both directions
+ *   path:staging        – match nodes whose filePath contains the string
+ *   glob*pattern        – wildcard name match
+ *   a,b,c              – union of multiple selectors
+ */
+function parseSelector(
+  selector: string,
+  allNodes: DbtNode[],
+  upstreamDepth: number,
+  downstreamDepth: number
+): Set<string> {
+  const result = new Set<string>()
+  const parts = selector.split(',').map(s => s.trim()).filter(Boolean)
+
+  const addAncestry = (nodeName: string, up: number, down: number) => {
+    result.add(nodeName)
+
+    const findUpstream = (name: string, depth: number) => {
+      if (depth >= up) return
+      const n = allNodes.find(n => n.name === name)
+      if (n) {
+        n.dependencies.forEach(dep => {
+          if (!result.has(dep)) {
+            result.add(dep)
+            findUpstream(dep, depth + 1)
+          }
+        })
+      }
+    }
+
+    const findDownstream = (name: string, depth: number) => {
+      if (depth >= down) return
+      allNodes.forEach(n => {
+        if (n.dependencies.includes(name) && !result.has(n.name)) {
+          result.add(n.name)
+          findDownstream(n.name, depth + 1)
+        }
+      })
+    }
+
+    findUpstream(nodeName, 0)
+    findDownstream(nodeName, 0)
+  }
+
+  for (const part of parts) {
+    let term = part
+    let includeUpstream = false
+    let includeDownstream = false
+
+    if (term.startsWith('+')) { includeUpstream = true; term = term.slice(1) }
+    if (term.endsWith('+'))   { includeDownstream = true; term = term.slice(0, -1) }
+    if (!term) continue
+
+    let matched: DbtNode[]
+
+    if (term.startsWith('path:')) {
+      const pathFilter = term.slice(5).toLowerCase()
+      matched = allNodes.filter(n => n.filePath?.toLowerCase().includes(pathFilter))
+    } else {
+      const lowerTerm = term.toLowerCase()
+      if (lowerTerm.includes('*')) {
+        const regexStr = lowerTerm.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')
+        const re = new RegExp('^' + regexStr + '$')
+        matched = allNodes.filter(n => re.test(n.name.toLowerCase()))
+      } else {
+        matched = allNodes.filter(n => n.name.toLowerCase().includes(lowerTerm))
+      }
+    }
+
+    for (const node of matched) {
+      addAncestry(
+        node.name,
+        includeUpstream  ? upstreamDepth  : 0,
+        includeDownstream ? downstreamDepth : 0
+      )
+    }
+  }
+
+  return result
 }
 
 interface DbtNode {
@@ -49,7 +138,8 @@ const LineageGraphInner = memo(function LineageGraphInner({
   setError,
   setAllDbtNodes,
   upstreamDepth,
-  downstreamDepth
+  downstreamDepth,
+  selectorFilter
 }: {
   projectPath: string | null
   selectedFile: string | null
@@ -61,6 +151,7 @@ const LineageGraphInner = memo(function LineageGraphInner({
   setAllDbtNodes: (nodes: DbtNode[]) => void
   upstreamDepth: number
   downstreamDepth: number
+  selectorFilter: string
 }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
@@ -220,7 +311,14 @@ const LineageGraphInner = memo(function LineageGraphInner({
     let filteredNodes: DbtNode[]
     let originalCount: number
 
-    if (hasValidSelection) {
+    const hasActiveFilter = selectorFilter.trim().length > 0
+
+    if (hasActiveFilter) {
+      // Selector filter overrides file-based selection
+      const selectorNames = parseSelector(selectorFilter, allDbtNodes, upstreamDepth, downstreamDepth)
+      filteredNodes = allDbtNodes.filter(n => allowedTypes.includes(n.type) && selectorNames.has(n.name))
+      originalCount = filteredNodes.length
+    } else if (hasValidSelection) {
       // Filter to relevant nodes for the selected file with depth limits
       const relevantNodeNames = getUpstreamDownstream(selectedNodeName!, allDbtNodes, upstreamDepth, downstreamDepth)
       filteredNodes = allDbtNodes.filter(node =>
@@ -237,7 +335,7 @@ const LineageGraphInner = memo(function LineageGraphInner({
     let truncated = false
     if (filteredNodes.length > MAX_NODES) {
       truncated = true
-      if (hasValidSelection) {
+      if (hasValidSelection && !hasActiveFilter) {
         // Keep only the closest nodes - prioritize direct dependencies
         const selectedNode = allDbtNodes.find(n => n.name === selectedNodeName)
         if (selectedNode) {
@@ -256,7 +354,7 @@ const LineageGraphInner = memo(function LineageGraphInner({
           filteredNodes = filteredNodes.slice(0, MAX_NODES)
         }
       } else {
-        // No selection - just take first MAX_NODES
+        // Filter or no selection - just take first MAX_NODES
         filteredNodes = filteredNodes.slice(0, MAX_NODES)
       }
     }
@@ -322,7 +420,7 @@ const LineageGraphInner = memo(function LineageGraphInner({
 
     const layouted = getLayoutedElements(flowNodes, flowEdges)
     return { graphNodes: layouted.nodes, graphEdges: layouted.edges, isTruncated: truncated, nodeCountBeforeTruncation: originalCount }
-  }, [allDbtNodes, selectedNodeName, hasValidSelection, getUpstreamDownstream, getLayoutedElements, upstreamDepth, downstreamDepth])
+  }, [allDbtNodes, selectedNodeName, hasValidSelection, selectorFilter, getUpstreamDownstream, getLayoutedElements, upstreamDepth, downstreamDepth])
 
   // Update nodes/edges when graph changes
   useEffect(() => {
@@ -406,7 +504,7 @@ const LineageGraphInner = memo(function LineageGraphInner({
 })
 
 // Main component - only mounts ReactFlow when enabled
-function LineageGraph({ projectPath, selectedFile, onNodeClick, compilationTrigger, venvMissing = false, enabled = false, upstreamDepth = 2, downstreamDepth = 2 }: LineageGraphProps) {
+function LineageGraph({ projectPath, selectedFile, onNodeClick, compilationTrigger, venvMissing = false, enabled = false, upstreamDepth = 2, downstreamDepth = 2, selectorFilter = '' }: LineageGraphProps) {
   const [allDbtNodes, setAllDbtNodes] = useState<DbtNode[]>([])
   const [error, setError] = useState<string | null>(null)
 
@@ -453,6 +551,7 @@ function LineageGraph({ projectPath, selectedFile, onNodeClick, compilationTrigg
           setAllDbtNodes={setAllDbtNodes}
           upstreamDepth={upstreamDepth}
           downstreamDepth={downstreamDepth}
+          selectorFilter={selectorFilter}
         />
       </ReactFlowProvider>
     </div>

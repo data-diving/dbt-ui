@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import './GraphView.css'
-import { Network, Play, TestTube, Hammer, Variable, ToggleLeft, ToggleRight, ChevronUp, ChevronDown, Minus, Plus, Database } from 'lucide-react'
+import { Network, Play, TestTube, Hammer, Variable, ToggleLeft, ToggleRight, ChevronUp, ChevronDown, Minus, Plus, Database, Search, X } from 'lucide-react'
 import LineageGraph from './LineageGraph'
 import DbtRunModal from '../dbt/DbtRunModal'
 import EnvVarsModal from '../dbt/EnvVarsModal'
@@ -42,6 +42,14 @@ function GraphView({ projectPath, selectedFile, onNodeClick, compilationTrigger,
   const [lineageEnabled, setLineageEnabled] = useState(false)
   const [upstreamDepth, setUpstreamDepth] = useState(2)
   const [downstreamDepth, setDownstreamDepth] = useState(2)
+  const [selectorFilter, setSelectorFilter] = useState('')
+
+  const handleFilterChange = (value: string) => {
+    // Reuse the same character whitelist as DbtRunModal
+    if (!value || /^[a-zA-Z0-9_.:+@*\-/\s,]+$/.test(value)) {
+      setSelectorFilter(value)
+    }
+  }
 
   // Reset selectedNodeType when file changes (to clear state from previous lineage clicks)
   useEffect(() => {
@@ -179,7 +187,7 @@ function GraphView({ projectPath, selectedFile, onNodeClick, compilationTrigger,
           <span className="graph-title">Lineage</span>
           <button
             className="lineage-toggle"
-            onClick={() => setLineageEnabled(!lineageEnabled)}
+            onClick={() => { setLineageEnabled(!lineageEnabled); if (lineageEnabled) setSelectorFilter('') }}
             title={lineageEnabled ? "Disable lineage" : "Enable lineage"}
           >
             {lineageEnabled ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
@@ -239,6 +247,26 @@ function GraphView({ projectPath, selectedFile, onNodeClick, compilationTrigger,
             </>
           )}
         </div>
+        {lineageEnabled && (
+          <div className="graph-header-center">
+            <div className="lineage-filter">
+              <Search size={11} className="lineage-filter-icon" />
+              <input
+                type="text"
+                className={`lineage-filter-input ${selectorFilter ? 'has-value' : ''}`}
+                placeholder="+model, path:staging, a,b"
+                value={selectorFilter}
+                onChange={e => handleFilterChange(e.target.value)}
+                title="Filter lineage by dbt selector (e.g. +model_name, path:staging, tag:daily)"
+              />
+              {selectorFilter && (
+                <button className="lineage-filter-clear" onClick={() => setSelectorFilter('')} title="Clear filter">
+                  <X size={11} />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         <div className="graph-header-right">
           {profileTargets.length > 0 && (
             <select
@@ -317,6 +345,7 @@ function GraphView({ projectPath, selectedFile, onNodeClick, compilationTrigger,
           enabled={lineageEnabled}
           upstreamDepth={upstreamDepth}
           downstreamDepth={downstreamDepth}
+          selectorFilter={selectorFilter}
         />
       </div>
       {showRunModal && (
