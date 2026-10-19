@@ -2,6 +2,7 @@
 
 import {
   GitBranch,
+  HelpCircle,
   FilePlus,
   Edit3,
   Trash2,
@@ -39,6 +40,14 @@ function SidebarHeader({
           <span className="sidebar-branch">
             <GitBranch size={12} />
             {branchName}
+            <span
+              className="sidebar-branch-help"
+              title={`This branch is not checked out in the repository's root folder on the server. `
+                + `It lives in a git worktree created for you:\n${projectPath}\n`
+                + `Each user has their own worktree, so your changes don't affect other users until you push them.`}
+            >
+              <HelpCircle size={11} />
+            </span>
           </span>
         )}
       </div>

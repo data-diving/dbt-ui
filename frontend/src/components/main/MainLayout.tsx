@@ -12,6 +12,11 @@ import UnsavedChangesModal from './UnsavedChangesModal'
 import ConfirmModal from './ConfirmModal'
 import { PanelLeftOpen } from 'lucide-react'
 import { apiUrl, apiFetch } from '../../config/api'
+import SchedulerPanel from '../scheduler/SchedulerPanel'
+import RunsGraph from '../scheduler/RunsGraph'
+import SchedulerSidebar from '../scheduler/SchedulerSidebar'
+import { useScheduler, schedulerButtonTitle } from '../scheduler/useScheduler'
+import { loadUiState, saveUiState } from './uiState'
 
 interface OperationResult {
   success: boolean
@@ -25,6 +30,8 @@ interface MainLayoutProps {
   dbtVersion: string
   onChangeProject: () => void
 }
+
+const SCHEDULER_OPEN_KEY = 'scheduler-open'
 
 function MainLayout({ projectPath, dbtVersion: initialDbtVersion, onChangeProject }: MainLayoutProps) {
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
@@ -49,6 +56,33 @@ function MainLayout({ projectPath, dbtVersion: initialDbtVersion, onChangeProjec
   const [hasMetaDVPackage, setHasMetaDVPackage] = useState(false)
   const [metaDVEnabled, setMetaDVEnabled] = useState(true)
   const saveRef = useRef<(() => Promise<void>) | null>(null)
+  const [showScheduler, setShowSchedulerState] = useState(false)
+  const scheduler = useScheduler(projectPath, showScheduler)
+  const setShowScheduler = (open: boolean) => {
+    setShowSchedulerState(open)
+    saveUiState(SCHEDULER_OPEN_KEY, open)
+  }
+  // Reopen the scheduler after a reload once its status confirms it is available
+  const restoreSchedulerRef = useRef(loadUiState(SCHEDULER_OPEN_KEY, false))
+  useEffect(() => {
+    if (restoreSchedulerRef.current && scheduler.status.ready) {
+      restoreSchedulerRef.current = false
+      setShowSchedulerState(true)
+    }
+  }, [scheduler.status.ready])
+  // Links to a run (e.g. from failure notifications): ?scheduler_run=<id> opens it in the scheduler
+  const linkedRunRef = useRef(Number(new URLSearchParams(window.location.search).get('scheduler_run')) || null)
+  useEffect(() => {
+    const runId = linkedRunRef.current
+    if (runId === null || !scheduler.status.ready) return
+    linkedRunRef.current = null
+    setShowScheduler(true)
+    scheduler.setTab('runs')
+    scheduler.selectRun(runId)
+    const url = new URL(window.location.href)
+    url.searchParams.delete('scheduler_run')
+    window.history.replaceState(null, '', url.toString())
+  }, [scheduler.status.ready])
 
   // Get list of models affected by a selector using dbt ls
   const getAffectedModels = async (selector: string): Promise<string[]> => {
@@ -363,7 +397,7 @@ function MainLayout({ projectPath, dbtVersion: initialDbtVersion, onChangeProjec
 
   const pollForCommandStatus = (command: string) => {
     let attempts = 0
-    const maxAttempts = 120 // Poll for up to 2 minutes
+    const maxAttempts = 120 // Give up after 2 minutes without a running/finished status
     const pollInterval = 1000 // Check every 1 second
 
     const checkStatus = () => {
@@ -412,22 +446,9 @@ function MainLayout({ projectPath, dbtVersion: initialDbtVersion, onChangeProjec
               output: statusData.error || ''
             })
           } else if (statusData.status === 'running') {
-            // Still running, keep polling
-            if (attempts < maxAttempts) {
-              setTimeout(checkStatus, pollInterval)
-            } else {
-              // Timeout
-              console.error(`[MainLayout] dbt ${command} timed out`)
-              setCompilingModels(new Set())
-              setDbtModalOpen(false)
-              setIsDbtOperationRunning(false)
-              setOperationResult({
-                success: false,
-                title: `dbt ${command} timeout`,
-                message: `${command} timed out after 2 minutes`,
-                output: ''
-              })
-            }
+            // Still running or queued behind other runs; the backend enforces the timeout
+            attempts = 0
+            setTimeout(checkStatus, pollInterval)
           } else {
             // not_started or unknown status, keep polling
             if (attempts < maxAttempts) {
@@ -558,7 +579,6 @@ function MainLayout({ projectPath, dbtVersion: initialDbtVersion, onChangeProjec
               selectedFile={selectedFile}
               onToggle={() => setShowSidebar(false)}
               onChangeProject={onChangeProject}
-              onCompile={handleDbtCompileModel}
               compilationTrigger={compilationTrigger}
               refreshTrigger={refreshTrigger}
               isDbtOperationRunning={isOperationRunning}
@@ -566,19 +586,22 @@ function MainLayout({ projectPath, dbtVersion: initialDbtVersion, onChangeProjec
               modifiedFiles={modifiedFiles}
               onRefreshModifiedFiles={loadGitModifiedFiles}
               onRecreateVenv={handleRecreateVenvClick}
-              onDbtRun={handleDbtRun}
+              schedulerAvailable={scheduler.status.ready}
+              schedulerTitle={schedulerButtonTitle(scheduler.status)}
+              schedulerOpen={showScheduler}
+              renderSchedulerSidebar={projectName => <SchedulerSidebar projectName={projectName} scheduler={scheduler} />}
+              onOpenScheduler={() => setShowScheduler(true)}
+              onCloseScheduler={() => setShowScheduler(false)}
               venvMissing={venvMissing}
               hasUnsavedChanges={hasUnsavedChanges}
-              onCheckUnsavedChanges={checkUnsavedChangesAndProceed}
               dbtModalOpen={dbtModalOpen}
-              onDbtModalOpenChange={setDbtModalOpen}
-              selectedTarget={selectedTarget}
               onPackagesFileChanged={checkMetaDVPackage}
             />
           </Pane>
           <Pane>
             <SplitPane direction="vertical">
               <Pane defaultSize="60%" minSize="200px">
+                <div className="scheduler-swap" style={{ display: showScheduler ? 'none' : 'contents' }}>
                 {showMetadata ? (
                   <SplitPane direction="horizontal" primary="second">
                     <Pane>
@@ -620,8 +643,18 @@ function MainLayout({ projectPath, dbtVersion: initialDbtVersion, onChangeProjec
                     saveRef={saveRef}
                   />
                 )}
+                </div>
+                {showScheduler && (
+                  <SchedulerPanel
+                    projectPath={projectPath}
+                    scheduler={scheduler}
+                    profileTargets={profileTargets}
+                    selectedTarget={selectedTarget}
+                  />
+                )}
               </Pane>
               <Pane minSize="200px">
+                <div className="scheduler-swap" style={{ display: showScheduler ? 'none' : 'contents' }}>
                 <GraphView
                   projectPath={projectPath}
                   selectedFile={selectedFile}
@@ -644,6 +677,8 @@ function MainLayout({ projectPath, dbtVersion: initialDbtVersion, onChangeProjec
                   metaDVEnabled={metaDVEnabled}
                   onRefreshTree={() => setRefreshTrigger((prev: number) => prev + 1)}
                 />
+                </div>
+                {showScheduler && <RunsGraph scheduler={scheduler} />}
               </Pane>
             </SplitPane>
           </Pane>
@@ -651,6 +686,7 @@ function MainLayout({ projectPath, dbtVersion: initialDbtVersion, onChangeProjec
       ) : (
         <SplitPane direction="vertical">
           <Pane defaultSize="60%" minSize="200px">
+            <div className="scheduler-swap" style={{ display: showScheduler ? 'none' : 'contents' }}>
             {showMetadata ? (
               <SplitPane direction="horizontal" primary="second">
                 <Pane>
@@ -691,8 +727,18 @@ function MainLayout({ projectPath, dbtVersion: initialDbtVersion, onChangeProjec
                 saveRef={saveRef}
               />
             )}
+            </div>
+            {showScheduler && (
+              <SchedulerPanel
+                projectPath={projectPath}
+                scheduler={scheduler}
+                profileTargets={profileTargets}
+                selectedTarget={selectedTarget}
+              />
+            )}
           </Pane>
           <Pane minSize="200px">
+            <div className="scheduler-swap" style={{ display: showScheduler ? 'none' : 'contents' }}>
             <GraphView
               projectPath={projectPath}
               selectedFile={selectedFile}
@@ -715,6 +761,8 @@ function MainLayout({ projectPath, dbtVersion: initialDbtVersion, onChangeProjec
               metaDVEnabled={metaDVEnabled}
               onRefreshTree={() => setRefreshTrigger((prev: number) => prev + 1)}
             />
+            </div>
+            {showScheduler && <RunsGraph scheduler={scheduler} />}
           </Pane>
         </SplitPane>
       )}

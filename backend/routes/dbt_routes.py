@@ -16,6 +16,7 @@ from utils.operation_lock import acquire_lock, release_lock, is_locked, get_lock
 from routes.env_routes import get_env_vars_from_cookie
 from utils.input_validation import validate_dbt_selector, validate_dbt_target
 from utils.subprocess_utils import run_command
+from scheduler.delegate import run_dbt_command
 
 router = APIRouter()
 
@@ -95,7 +96,7 @@ def run_dbt_command_task(path: Path, command: str, selector: str = "", target: s
         # Get environment with env vars from frontend
         env = get_dbt_env(path, env_vars)
 
-        result = run_command(cmd, path, timeout=300, env=env)
+        result = run_dbt_command(cmd, path, 300, env, command, selector, target, full_refresh)
 
         if result.success:
             dbt_command_status[path_str] = {

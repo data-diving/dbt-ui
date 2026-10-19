@@ -1,0 +1,43 @@
+# Build context is the repository root (see docker-compose*.yml).
+# Images are built from source; dependencies are installed inside the build.
+
+# VCS and editor files
+.git
+.github
+**/.DS_Store
+**/.idea
+**/.vscode
+
+# Local dependencies and build outputs (installed/built inside the images)
+**/node_modules
+**/.venv
+**/venv
+**/dist
+**/dist-ssr
+**/.vite
+
+# Python caches
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+
+# dbt project environments and outputs created by dbt UI
+**/.dbt-ui-venv
+**/target
+**/dbt_packages
+**/logs
+**/*.log
+**/*.duckdb
+
+# Mounted at runtime, never baked into images
+git-repos
+
+# Secrets
+**/.env
+**/.env.*
+
+# Not needed in the images
+backend/tests
+docker-compose*.yml
+docs
+*.md

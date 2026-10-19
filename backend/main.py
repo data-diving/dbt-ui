@@ -1,5 +1,6 @@
 """dbt-ui Backend API - Main application entry point."""
 import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -10,13 +11,23 @@ from routes.dbt_routes import router as dbt_router
 from routes.venv_routes import router as venv_router
 from routes.env_routes import router as env_router
 from routes.metadv_routes import router as metadv_router
+from routes.scheduler_routes import router as scheduler_router
+from scheduler.service import scheduler_service
 from auth import verify_credentials, is_auth_enabled
 
 def is_metadv_enabled() -> bool:
     """Check if MetaDV feature is enabled via environment variable."""
     return os.environ.get("DBT_UI__METADV_ENABLED", "true").lower() in ("true", "1", "yes")
 
-app = FastAPI(title="dbt-ui Backend API")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Scheduler setup (DB schema, cron loop) runs only when DBT_UI__SCHEDULER_ENABLED=true
+    await scheduler_service.start()
+    yield
+    await scheduler_service.stop()
+
+
+app = FastAPI(title="dbt-ui Backend API", lifespan=lifespan)
 
 # Configure CORS - allow specific origins for credential support (cookies)
 # When allow_credentials=True, allow_origins cannot be ["*"]
@@ -54,6 +65,7 @@ app.include_router(git_router, dependencies=auth_dependency)
 app.include_router(dbt_router, dependencies=auth_dependency)
 app.include_router(venv_router, dependencies=auth_dependency)
 app.include_router(env_router, dependencies=auth_dependency)
+app.include_router(scheduler_router, dependencies=auth_dependency)
 
 # Only include MetaDV router if the feature is enabled
 if is_metadv_enabled():

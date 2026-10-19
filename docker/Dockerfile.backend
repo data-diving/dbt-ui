@@ -35,9 +35,9 @@ COPY backend/ .
 # Copy project license
 COPY LICENSE /app/
 
-# Create git-repos directory and set ownership
-RUN mkdir -p /home/dbtui/git-repos && \
-    chown -R dbtui:dbtui /app /home/dbtui/git-repos
+# Create git-repos and scheduler data directories and set ownership
+RUN mkdir -p /home/dbtui/git-repos /home/dbtui/data && \
+    chown -R dbtui:dbtui /app /home/dbtui/git-repos /home/dbtui/data
 
 # Switch to non-root user
 USER dbtui
