@@ -1,8 +1,8 @@
 // Sidebar action buttons component
 
 import {
-  Play,
-  RefreshCw,
+  Clock,
+  FolderTree,
   GitBranch,
   PackageOpen,
   FolderSearch
@@ -10,16 +10,14 @@ import {
 
 interface SidebarActionsProps {
   isDbtOperationRunning?: boolean
-  compilingModels?: Set<string>
   venvMissing?: boolean
   dbtModalOpen?: boolean
-  manifestMissing: boolean
   hasModifiedFiles: boolean
-  isRunning: boolean
-  isCompiling: boolean
-  hasUnsavedChanges: boolean
-  onRunClick: () => void
-  onCompileClick: () => void
+  schedulerOpen: boolean
+  schedulerAvailable: boolean
+  schedulerTitle: string
+  onFilesClick: () => void
+  onSchedulerClick: () => void
   onGitClick: () => void
   onRecreateVenv?: () => void
   onChangeProject?: () => void
@@ -27,38 +25,34 @@ interface SidebarActionsProps {
 
 function SidebarActions({
   isDbtOperationRunning,
-  compilingModels,
   venvMissing,
   dbtModalOpen,
-  manifestMissing,
   hasModifiedFiles,
-  isRunning,
-  isCompiling,
-  onRunClick,
-  onCompileClick,
+  schedulerOpen,
+  schedulerAvailable,
+  schedulerTitle,
+  onFilesClick,
+  onSchedulerClick,
   onGitClick,
   onRecreateVenv,
   onChangeProject
 }: SidebarActionsProps) {
-  const isDisabled = isDbtOperationRunning || (compilingModels && compilingModels.size > 0) || dbtModalOpen
-
   return (
     <div className="sidebar-actions">
       <button
-        className="action-button"
-        title="Run dbt"
-        onClick={onRunClick}
-        disabled={isDisabled || isRunning || venvMissing}
+        className={`action-button ${schedulerOpen ? '' : 'active'}`}
+        title="Files and editor"
+        onClick={onFilesClick}
       >
-        <Play size={18} />
+        <FolderTree size={18} />
       </button>
       <button
-        className={`action-button ${manifestMissing ? 'glow' : ''}`}
-        title="Compile"
-        onClick={onCompileClick}
-        disabled={isDisabled || isCompiling || venvMissing}
+        className={`action-button ${schedulerOpen ? 'active' : ''}`}
+        title={schedulerTitle}
+        onClick={onSchedulerClick}
+        disabled={!schedulerAvailable}
       >
-        <RefreshCw size={18} />
+        <Clock size={18} />
       </button>
       <button
         className={`action-button ${hasModifiedFiles ? 'glow' : ''}`}

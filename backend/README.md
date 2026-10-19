@@ -35,6 +35,17 @@ python main.py
 
 The server will start on `http://localhost:8000`
 
+## Tests
+
+```bash
+uv sync
+uv run pytest tests
+# Also run against Postgres (tables are created in the given database)
+DBT_UI_TEST_PG_URL=postgresql://user:password@localhost:5432/dbtui uv run pytest tests
+```
+
+The scheduler tests use a stub `dbt` executable (`tests/stub_dbt.py`), so no warehouse or network access is needed.
+
 ## API Endpoints
 
 ### `GET /`
@@ -87,7 +98,7 @@ When running in Docker, the backend uses a volume mount (configured in `docker-c
 To use existing git repositories from your host machine:
 
 ```bash
-GIT_REPOS_PATH=/path/to/your/repos docker-compose up --build
+GIT_REPOS_PATH=/path/to/your/repos docker compose up --build
 ```
 
 ## API Documentation

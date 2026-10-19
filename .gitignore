@@ -41,3 +41,6 @@ lerna-debug.log*
 .env
 .env.local
 .env.*.local
+
+# Repositories mounted into the backend container (GIT_REPOS_PATH default)
+git-repos/

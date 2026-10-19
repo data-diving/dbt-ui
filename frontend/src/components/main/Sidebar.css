@@ -323,6 +323,11 @@
   color: #ffffff;
 }
 
+.action-button.active {
+  background-color: #37373d;
+  color: #ffffff;
+}
+
 .action-button:disabled {
   opacity: 0.3;
   cursor: not-allowed;
@@ -361,4 +366,17 @@
                 0 0 25px rgba(78, 201, 176, 0.4),
                 0 0 35px rgba(78, 201, 176, 0.2);
   }
+}
+
+.sidebar-branch .sidebar-branch-help {
+  display: inline-flex;
+  cursor: help;
+}
+
+.sidebar-branch .sidebar-branch-help svg {
+  color: #858585;
+}
+
+.sidebar-branch .sidebar-branch-help:hover svg {
+  color: #cccccc;
 }

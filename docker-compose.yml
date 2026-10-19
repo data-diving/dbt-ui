@@ -1,5 +1,22 @@
 version: '3.8'
 
+# dbt UI with the built-in scheduler enabled (default).
+#
+# docker-compose-without-scheduler.yml has the same services without the scheduler.
+# Keep the two files in sync when changing shared settings.
+#
+# The scheduler needs an encryption key, e.g. saved once in a .env file next to this file:
+#
+#   echo "DBT_UI__SCHEDULER_ENCRYPTION_KEY=$(openssl rand -base64 32 | tr '+/' '-_')" >> .env
+#   docker compose up --build
+#
+# Store the key somewhere safe: credentials saved with scheduled jobs can't be decrypted without it.
+#
+# WARNING: WITH DUCKDB, SQLITE AND OTHER IN-PROCESS DATABASES, ALL DATA IS PROCESSED INSIDE
+# THE DBT UI BACKEND CONTAINER. EVERY SCHEDULED AND MANUAL RUN THEN USES THE BACKEND'S CPU,
+# MEMORY AND DISK, WHICH CAN SIGNIFICANTLY SLOW DOWN OR DESTABILISE DBT UI FOR ALL USERS.
+# The scheduler is meant for remote warehouses (Postgres, Snowflake, BigQuery, Redshift, ...).
+
 # Shared environment variables used by both services
 x-shared-env: &shared-env
   # Authentication credentials (optional - if not set, auth is disabled)
@@ -13,10 +30,33 @@ x-shared-env: &shared-env
   DBT_UI__BACKEND_GIT_CREDS_COOKIE_MAX_AGE: ${DBT_UI__BACKEND_GIT_CREDS_COOKIE_MAX_AGE:-2592000}
   # Backend-specific
   PYTHONUNBUFFERED: 1
-  # Frontend URL for CORS (default: http://localhost for Docker)
+  # Address users open dbt UI at (default: http://localhost for Docker): allowed for CORS,
+  # and used for links to runs in the scheduler's failure notifications
   DBT_UI__FRONTEND_URL: ${DBT_UI__FRONTEND_URL:-http://localhost}
   # Backend URL for nginx proxy (default: http://backend:8000)
   DBT_UI__BACKEND_URL: ${DBT_UI__BACKEND_URL:-http://backend:8000}
+
+# Scheduler settings (backend only)
+x-scheduler-env: &scheduler-env
+  # Enables the scheduler; manual dbt runs are executed and recorded by it too
+  DBT_UI__SCHEDULER_ENABLED: ${DBT_UI__SCHEDULER_ENABLED:-true}
+  # Required: Fernet key used to encrypt credentials stored with jobs
+  DBT_UI__SCHEDULER_ENCRYPTION_KEY: ${DBT_UI__SCHEDULER_ENCRYPTION_KEY:?Set DBT_UI__SCHEDULER_ENCRYPTION_KEY (see the comment at the top of this file)}
+  # Where the SQLite database, run logs and job checkouts are stored
+  DBT_UI__SCHEDULER_DATA_DIR: /home/dbtui/data
+  # Run data database. SQLite by default; for Postgres use
+  # postgresql://user:password@host:5432/dbname (tables are created automatically)
+  DBT_UI__SCHEDULER_DB_URL: ${DBT_UI__SCHEDULER_DB_URL:-sqlite:////home/dbtui/data/dbt-ui.db}
+  # Maximum number of dbt runs executing at the same time (scheduled and manual combined)
+  DBT_UI__SCHEDULER_MAX_CONCURRENT: ${DBT_UI__SCHEDULER_MAX_CONCURRENT:-2}
+  # Optional address-space cap per dbt process, e.g. 4g (empty = no cap)
+  DBT_UI__SCHEDULER_MAX_MEMORY: ${DBT_UI__SCHEDULER_MAX_MEMORY:-}
+  # Days to keep run history and logs
+  DBT_UI__SCHEDULER_RETENTION_DAYS: ${DBT_UI__SCHEDULER_RETENTION_DAYS:-30}
+  # Timeout in seconds for manual runs started from the editor
+  DBT_UI__SCHEDULER_MANUAL_TIMEOUT: ${DBT_UI__SCHEDULER_MANUAL_TIMEOUT:-300}
+  # Most catch-up runs queued per job at a time; further missed slots follow in the next batch
+  DBT_UI__SCHEDULER_MAX_CATCHUP_RUNS: ${DBT_UI__SCHEDULER_MAX_CATCHUP_RUNS:-100}
 
 services:
   backend:
@@ -28,8 +68,11 @@ services:
     volumes:
       # Mount for git repositories (cloned or existing local repos)
       - ${DBT_UI__GIT_REPOS_PATH:-./git-repos}:/home/dbtui/git-repos
+      # Scheduler database (SQLite), run logs and job checkouts
+      - dbtui-data:/home/dbtui/data
     environment:
-      <<: *shared-env
+      <<: [*shared-env, *scheduler-env]
+    restart: unless-stopped
 
   frontend:
     build:
@@ -45,3 +88,7 @@ services:
       <<: *shared-env
     depends_on:
       - backend
+    restart: unless-stopped
+
+volumes:
+  dbtui-data:

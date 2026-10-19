@@ -1,12 +1,13 @@
 // Sidebar component types
 
+import { ReactNode } from 'react'
+
 export interface SidebarProps {
   projectPath: string
   onFileSelect: (file: string) => void
   selectedFile: string | null
   onToggle?: () => void
   onChangeProject?: () => void
-  onCompile?: (selector: string) => Promise<void>
   compilationTrigger?: number
   refreshTrigger?: number
   isDbtOperationRunning?: boolean
@@ -14,13 +15,16 @@ export interface SidebarProps {
   modifiedFiles?: Set<string>
   onRefreshModifiedFiles?: () => void
   onRecreateVenv?: () => void
-  onDbtRun?: (selector: string, fullRefresh?: boolean) => Promise<void>
+  schedulerAvailable?: boolean
+  schedulerTitle?: string
+  schedulerOpen?: boolean
+  // Rendered instead of the header and file tree while the scheduler is open
+  renderSchedulerSidebar?: (projectName: string) => ReactNode
+  onOpenScheduler?: () => void
+  onCloseScheduler?: () => void
   venvMissing?: boolean
   hasUnsavedChanges?: boolean
-  onCheckUnsavedChanges?: (actionType: string, callback: () => void) => void
   dbtModalOpen?: boolean
-  onDbtModalOpenChange?: (open: boolean) => void
-  selectedTarget?: string
   onPackagesFileChanged?: () => void
 }
 

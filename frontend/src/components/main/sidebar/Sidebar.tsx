@@ -12,9 +12,11 @@ import { findNodeInTree, updateNodeInTree } from './utils'
 import FileTree from './FileTree'
 import SidebarHeader from './SidebarHeader'
 import SidebarActions from './SidebarActions'
-import DbtRunModal from '../../dbt/DbtRunModal'
 import ConfirmModal from '../ConfirmModal'
 import GitModal from '../../git/GitModal'
+import { loadUiState, saveUiState } from '../uiState'
+
+const GIT_OPEN_KEY = 'git-dialog-open'
 
 function Sidebar({
   projectPath,
@@ -22,7 +24,6 @@ function Sidebar({
   selectedFile,
   onToggle,
   onChangeProject,
-  onCompile,
   compilationTrigger,
   refreshTrigger,
   isDbtOperationRunning,
@@ -30,13 +31,15 @@ function Sidebar({
   modifiedFiles,
   onRefreshModifiedFiles,
   onRecreateVenv,
-  onDbtRun,
+  schedulerAvailable = false,
+  schedulerTitle = 'Scheduler',
+  schedulerOpen = false,
+  renderSchedulerSidebar,
+  onOpenScheduler,
+  onCloseScheduler,
   venvMissing,
   hasUnsavedChanges = false,
-  onCheckUnsavedChanges,
   dbtModalOpen = false,
-  onDbtModalOpenChange,
-  selectedTarget = '',
   onPackagesFileChanged
 }: SidebarProps) {
   // Selection state
@@ -52,19 +55,19 @@ function Sidebar({
   })
 
   // Modal state
-  const [showRunModal, setShowRunModal] = useState(false)
-  const [showCompileModal, setShowCompileModal] = useState(false)
   const [showRenameModal, setShowRenameModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const [showGitModal, setShowGitModal] = useState(false)
-  const [isRunning, setIsRunning] = useState(false)
-  const [isCompiling, setIsCompiling] = useState(false)
+  const [showGitModal, setShowGitModalState] = useState(() => loadUiState(GIT_OPEN_KEY, false))
+  const setShowGitModal = (open: boolean) => {
+    setShowGitModalState(open)
+    saveUiState(GIT_OPEN_KEY, open)
+  }
+  const [showChangeProjectModal, setShowChangeProjectModal] = useState(false)
 
   // Project data hook
   const {
     projectName,
     branchName,
-    manifestMissing,
     loadProjectName,
     loadBranchName,
     checkManifest
@@ -267,33 +270,14 @@ function Sidebar({
     }
   }
 
-  // dbt handlers
-  const handleDbtRun = async (selector: string, fullRefresh?: boolean) => {
-    if (!onDbtRun) return
-    setIsRunning(true)
-    setShowRunModal(false)
-    try {
-      await onDbtRun(selector, fullRefresh)
-    } finally {
-      setIsRunning(false)
-    }
-  }
-
-  const handleDbtCompile = async (selector: string) => {
-    if (!onCompile) return
-    setIsCompiling(true)
-    setShowCompileModal(false)
-    try {
-      await onCompile(selector)
-    } finally {
-      setIsCompiling(false)
-    }
-  }
-
   const hasModifiedFiles = modifiedFiles ? modifiedFiles.size > 0 : false
 
   return (
     <div className="sidebar">
+      {schedulerOpen && renderSchedulerSidebar?.(projectName || projectPath.split('/').pop() || '')}
+
+      {/* Kept mounted while the scheduler is open so the tree keeps its expanded folders */}
+      <div className="sidebar-files" style={{ display: schedulerOpen ? 'none' : 'contents' }}>
       <SidebarHeader
         projectName={projectName}
         projectPath={projectPath}
@@ -365,6 +349,7 @@ function Sidebar({
           </>
         )}
       </div>
+      </div>
 
       {(isDbtOperationRunning || dbtModalOpen || (compilingModels && compilingModels.size > 0)) && (
         <div className="sidebar-progress">
@@ -374,64 +359,34 @@ function Sidebar({
 
       <SidebarActions
         isDbtOperationRunning={isDbtOperationRunning}
-        compilingModels={compilingModels}
         venvMissing={venvMissing}
         dbtModalOpen={dbtModalOpen}
-        manifestMissing={manifestMissing}
         hasModifiedFiles={hasModifiedFiles}
-        isRunning={isRunning}
-        isCompiling={isCompiling}
-        hasUnsavedChanges={hasUnsavedChanges}
-        onRunClick={() => {
-          const openModal = () => {
-            if (onDbtModalOpenChange) onDbtModalOpenChange(true)
-            setShowRunModal(true)
-          }
-          if (hasUnsavedChanges && onCheckUnsavedChanges) {
-            onCheckUnsavedChanges('running dbt', openModal)
-          } else {
-            openModal()
-          }
-        }}
-        onCompileClick={() => {
-          const openModal = () => {
-            if (onDbtModalOpenChange) onDbtModalOpenChange(true)
-            setShowCompileModal(true)
-          }
-          if (hasUnsavedChanges && onCheckUnsavedChanges) {
-            onCheckUnsavedChanges('compiling', openModal)
-          } else {
-            openModal()
-          }
-        }}
+        schedulerOpen={schedulerOpen}
+        schedulerAvailable={schedulerAvailable}
+        schedulerTitle={schedulerTitle}
+        onFilesClick={() => onCloseScheduler?.()}
+        onSchedulerClick={() => onOpenScheduler?.()}
         onGitClick={() => setShowGitModal(true)}
         onRecreateVenv={onRecreateVenv}
-        onChangeProject={onChangeProject}
+        onChangeProject={onChangeProject && (() => setShowChangeProjectModal(true))}
       />
 
       {/* Modals */}
-      {showRunModal && (
-        <DbtRunModal
-          onClose={() => {
-            setShowRunModal(false)
-            if (onDbtModalOpenChange) onDbtModalOpenChange(false)
+      {showChangeProjectModal && onChangeProject && (
+        <ConfirmModal
+          onClose={() => setShowChangeProjectModal(false)}
+          onConfirm={() => {
+            setShowChangeProjectModal(false)
+            onChangeProject()
           }}
-          onRun={handleDbtRun}
-          isRunning={isRunning}
-          target={selectedTarget}
-        />
-      )}
-
-      {showCompileModal && (
-        <DbtRunModal
-          onClose={() => {
-            setShowCompileModal(false)
-            if (onDbtModalOpenChange) onDbtModalOpenChange(false)
-          }}
-          onRun={handleDbtCompile}
-          isRunning={isCompiling}
-          mode="compile"
-          target={selectedTarget}
+          title="Switch project?"
+          message={hasUnsavedChanges
+            ? 'You will return to the project selection screen. Unsaved changes in the editor will be lost.'
+            : 'You will return to the project selection screen.'}
+          confirmLabel="Switch project"
+          cancelLabel="Cancel"
+          variant="warning"
         />
       )}
 
