@@ -1,5 +1,3 @@
-version: '3.8'
-
 # dbt UI without the built-in scheduler: manual dbt runs execute directly as before.
 #
 #   docker compose -f docker-compose-without-scheduler.yml up --build
