@@ -1,5 +1,3 @@
-version: '3.8'
-
 # dbt UI with the built-in scheduler enabled (default).
 #
 # docker-compose-without-scheduler.yml has the same services without the scheduler.
