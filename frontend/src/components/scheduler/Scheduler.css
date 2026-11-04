@@ -239,6 +239,17 @@
   color: #ffffff;
 }
 
+.graph-action-button.primary {
+  background-color: #0e639c;
+  border-color: #0e639c;
+  color: #ffffff;
+}
+
+.graph-action-button.primary:hover:not(:disabled) {
+  background-color: #1177bb;
+  border-color: #1177bb;
+}
+
 .scheduler-toolbar {
   display: flex;
   align-items: center;
@@ -1210,4 +1221,10 @@
   font-size: 12px;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* Settings > All projects */
+.scheduler-projects-overview .scheduler-toolbar p {
+  margin: 0;
+  flex: 1;
 }
