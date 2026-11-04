@@ -9,6 +9,7 @@ import re
 import os
 import json
 import base64
+from datetime import datetime
 
 from models import (
     ProjectPath, GitRepoUrl, GitTrackedRequest, RestoreFileRequest,
@@ -215,6 +216,49 @@ def get_git_file_status(project_path: Path) -> GitFileStatus:
     return status
 
 
+def is_git_auth_error(message: str) -> bool:
+    lowered = message.lower()
+    return any(s in lowered for s in (
+        "could not read username", "authentication failed", "invalid username or password",
+        "terminal prompts disabled", "permission denied (publickey)", "repository not found",
+    ))
+
+
+def normalize_repo_url(url: str) -> str:
+    """Canonical form of a clone URL, so different spellings of one repository compare equal."""
+    url = url.strip()
+    url = re.sub(r'^(https?://)[^/@]+@', r'\1', url)  # drop embedded credentials
+    url = url.rstrip('/')
+    if url.endswith('.git'):
+        url = url[:-4]
+    match = re.match(r'^([a-z][a-z0-9+.-]*://)([^/]+)(.*)$', url, re.IGNORECASE)
+    if match:
+        url = match.group(1).lower() + match.group(2).lower() + match.group(3)
+    return url
+
+
+def find_existing_clone(cache_dir: Path, clone_url: str, legacy_url: str) -> "Path | None":
+    """Return the existing clone of clone_url in cache_dir, if any.
+
+    Older versions named clone directories after a hash of the URL exactly as typed, so the
+    same repository may already be cloned under a different name. Matching on the origin
+    remote finds it regardless.
+    """
+    repo_name = clone_url.rstrip('/').split('/')[-1].replace('.git', '')
+    legacy_path = cache_dir / f"{repo_name}-{hashlib.md5(legacy_url.encode()).hexdigest()[:12]}"
+    if (legacy_path / ".git").is_dir():
+        return legacy_path
+
+    wanted = normalize_repo_url(clone_url)
+    for candidate in sorted(cache_dir.iterdir()):
+        if candidate.name == "worktrees" or not (candidate / ".git").is_dir():
+            continue
+        origin = run_git_command(['config', '--get', 'remote.origin.url'], candidate, candidate, timeout=5)
+        if origin.success and normalize_repo_url(origin.stdout) == wanted:
+            return candidate
+    return None
+
+
 @router.post("/api/clone-git-repo")
 async def clone_git_repo(git_repo: GitRepoUrl, http_request: Request, response: Response):
     """Clone a Git repository to a local cache directory and return the path."""
@@ -259,58 +303,88 @@ async def clone_git_repo(git_repo: GitRepoUrl, http_request: Request, response: 
         if gitlab_ui_match:
             actual_git_url = gitlab_ui_match.group(1) + '.git'
 
-    # Create a unique directory name based on the Git URL
-    url_hash = hashlib.md5(git_url.encode()).hexdigest()[:12]
-
     # Create cache directory (configurable via GIT_REPOS_PATH env var)
     cache_dir = get_git_repos_path()
     cache_dir.mkdir(parents=True, exist_ok=True)
 
-    # Extract repo name from URL for readability
-    repo_name = actual_git_url.rstrip('/').split('/')[-1].replace('.git', '')
-    clone_path = cache_dir / f"{repo_name}-{url_hash}"
+    # One shared clone per repository, whatever form of its URL was entered, so all users
+    # of a repository see the same project (and the same scheduled jobs).
+    clone_path = find_existing_clone(cache_dir, actual_git_url, legacy_url=git_url)
+    if clone_path is None:
+        repo_name = actual_git_url.rstrip('/').split('/')[-1].replace('.git', '')
+        url_hash = hashlib.md5(normalize_repo_url(actual_git_url).encode()).hexdigest()[:12]
+        clone_path = cache_dir / f"{repo_name}-{url_hash}"
 
     # Determine the final project path (with subdirectory if specified)
     final_project_path = clone_path / subdirectory if subdirectory else clone_path
 
-    # If already cloned, pull latest changes
-    if clone_path.exists():
+    # Check for stored credentials (use clone_path as key since that's where they're stored)
+    stored_username = get_stored_username_from_cookie(http_request, str(clone_path))
+
+    # If use_stored is set, get full credentials from cookie
+    if git_repo.use_stored:
+        stored_creds = get_git_credentials_from_cookie(http_request, str(clone_path))
+        if stored_creds:
+            username = stored_creds.get("username", "")
+            password = stored_creds.get("password", "")
+
+    # Already cloned (possibly by another user): never delete or re-clone it. Other users'
+    # worktrees and scheduled job checkouts are registered in this clone's .git directory.
+    # Fetching with this user's credentials also verifies they can access the repository.
+    if (clone_path / ".git").exists():
         try:
-            # Pull latest changes
-            result = run_git_command(['pull'], clone_path, clone_path, timeout=60)
-            if not result.success:
-                # If pull fails, remove and re-clone
-                shutil.rmtree(clone_path)
+            env = os.environ.copy()
+            env["GIT_TERMINAL_PROMPT"] = "0"
+            if username and password and actual_git_url.startswith("https://"):
+                with git_askpass_env(username, password, env) as askpass_env:
+                    result = run_git_command(['fetch', 'origin'], clone_path, clone_path, timeout=120, env=askpass_env)
             else:
-                # Pull succeeded, return cached path
-                return {
-                    "valid": True,
-                    "path": str(clone_path),  # Return git root, not subdirectory
-                    "subdirectory": subdirectory or "",
-                    "name": final_project_path.name,
-                    "cached": True
-                }
-        except HTTPException:
-            raise
-        except Exception as e:
-            print(f"Error pulling repository: {e}")
-            # If anything goes wrong, remove and re-clone
-            if clone_path.exists():
-                shutil.rmtree(clone_path)
+                result = run_git_command(['fetch', 'origin'], clone_path, clone_path, timeout=120, env=env)
+        except subprocess.TimeoutExpired:
+            raise HTTPException(status_code=408, detail="Fetching the repository timed out.")
+
+        if not result.success:
+            error_msg = result.error or ""
+            sanitized_error = re.sub(r'https://[^:]+:[^@]+@', 'https://***:***@', error_msg)
+            if is_git_auth_error(error_msg):
+                if actual_git_url.startswith("https://"):
+                    raise HTTPException(
+                        status_code=401,
+                        detail={"code": "AUTH_REQUIRED", "stored_username": stored_username}
+                    )
+                raise HTTPException(status_code=401, detail="Authentication failed. Check your SSH keys or credentials.")
+            raise HTTPException(status_code=502, detail=f"Failed to fetch repository: {sanitized_error}")
+
+        # Keep the shared checkout's branch current (new user branches start from it).
+        # Fast-forward only: never discard anything, just leave it as is if that's not possible.
+        ff_result = run_git_command(['merge', '--ff-only', '@{upstream}'], clone_path, clone_path, timeout=30)
+        if not ff_result.success:
+            print(f"[clone-git-repo] Could not fast-forward {clone_path}: {ff_result.error.strip()}")
+
+        if git_repo.save_credentials and username and password and actual_git_url.startswith("https://"):
+            set_git_credentials_cookie(response, str(clone_path), username, password)
+
+        return {
+            "valid": True,
+            "path": str(clone_path),  # Return git root, not subdirectory
+            "subdirectory": subdirectory or "",
+            "name": final_project_path.name,
+            "cached": True
+        }
+
+    if clone_path.exists():
+        # Leftover directory without a repository (e.g. an interrupted clone)
+        if any(clone_path.iterdir()):
+            raise HTTPException(
+                status_code=409,
+                detail=f"{clone_path} exists but is not a git repository. Remove it and try again."
+            )
+        clone_path.rmdir()
 
     # Clone the repository
     try:
         env = os.environ.copy()
-
-        # Check for stored credentials (use clone_path as key since that's where they're stored)
-        stored_username = get_stored_username_from_cookie(http_request, str(clone_path))
-
-        # If use_stored is set, get full credentials from cookie
-        if git_repo.use_stored:
-            stored_creds = get_git_credentials_from_cookie(http_request, str(clone_path))
-            if stored_creds:
-                username = stored_creds.get("username", "")
-                password = stored_creds.get("password", "")
+        env["GIT_TERMINAL_PROMPT"] = "0"
 
         # If credentials available and using HTTPS, use GIT_ASKPASS for secure credential passing
         if username and password and actual_git_url.startswith("https://"):
@@ -329,7 +403,7 @@ async def clone_git_repo(git_repo: GitRepoUrl, http_request: Request, response: 
             # Sanitize error message to remove any credentials that might be in URLs
             sanitized_error = re.sub(r'https://[^:]+:[^@]+@', 'https://***:***@', error_msg)
             # Check for authentication errors
-            if "could not read Username" in error_msg or "Authentication failed" in error_msg or "Invalid username or password" in error_msg or "terminal prompts disabled" in error_msg:
+            if is_git_auth_error(error_msg):
                 if actual_git_url.startswith("https://"):
                     raise HTTPException(
                         status_code=401,
@@ -573,8 +647,12 @@ async def setup_worktree(request: SetupWorktreeRequest):
 
         # Handle orphaned directory (directory exists but git doesn't know about it)
         if not worktree_in_git and worktree_dir_exists:
-            print(f"[setup-worktree] Removing orphaned worktree directory: {worktree_path}")
-            shutil.rmtree(worktree_path)
+            # The directory may hold uncommitted work, so keep it instead of deleting it
+            backup_path = worktree_path.with_name(
+                f"{worktree_path.name}.orphaned-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+            )
+            print(f"[setup-worktree] Moving orphaned worktree directory aside: {worktree_path} -> {backup_path}")
+            shutil.move(str(worktree_path), str(backup_path))
             worktree_dir_exists = False
 
         if not worktree_in_git:

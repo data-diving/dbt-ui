@@ -9,6 +9,7 @@ import {
 import { SchedulerState, SchedulerTab } from './useScheduler'
 import JobForm from './JobForm'
 import NotificationSettings from './NotificationSettings'
+import ProjectsOverview from './ProjectsOverview'
 import RunDetails from './RunDetails'
 import RerunModal from './RerunModal'
 import StatusBadge from './StatusBadge'
@@ -288,7 +289,7 @@ function SchedulerPanel({ projectPath, scheduler, profileTargets, selectedTarget
         </div>
         <div className="scheduler-header-right">
           {tab === 'jobs' && (
-            <button className="graph-action-button" onClick={() => setEditing('new')} disabled={!context}>
+            <button className="graph-action-button primary" onClick={() => setEditing('new')} disabled={!context}>
               <Plus size={14} /><span>New job</span>
             </button>
           )}
@@ -403,6 +404,8 @@ function SchedulerPanel({ projectPath, scheduler, profileTargets, selectedTarget
             />
             <div className="scheduler-section-title">Failure notifications</div>
             <NotificationSettings projectPath={projectPath} onChanged={scheduler.refresh} />
+            <div className="scheduler-section-title">All projects</div>
+            <ProjectsOverview currentProjectKey={context.project_key} />
           </div>
         )}
       </div>

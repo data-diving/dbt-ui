@@ -194,8 +194,22 @@ async function request<T>(endpoint: string, method: string, body?: unknown): Pro
   return response.json()
 }
 
+// Every project with jobs or runs and how many of each (Settings > All projects)
+export interface ProjectOverview {
+  project_key: string
+  repo: string
+  subdirectory: string
+  jobs: number
+  runs: number
+  // Latest run that ran or is running (skipped runs not counted)
+  last_run: { status: RunStatus; at: string | null } | null
+  // origin remote of the repository, without credentials ('' if none)
+  upstream_url: string
+}
+
 export const schedulerApi = {
   status: () => request<SchedulerStatus>('/api/scheduler/status', 'GET'),
+  projects: () => request<{ projects: ProjectOverview[] }>('/api/scheduler/projects', 'GET'),
   context: (path: string) => request<SchedulerContext>('/api/scheduler/context', 'POST', { path }),
   cronPreview: (cron: string) => request<CronPreview>('/api/scheduler/cron-preview', 'POST', { cron }),
 

@@ -26,6 +26,7 @@ from scheduler.manager import ACTIVE_STATUSES, SKIPPABLE_STATUSES, SKIPPED_BY_US
 from scheduler.results import node_name
 from scheduler.service import scheduler_service
 from utils.input_validation import validate_dbt_selector, validate_dbt_target
+from utils.subprocess_utils import run_git_command
 
 router = APIRouter(prefix="/api/scheduler")
 
@@ -361,6 +362,58 @@ def list_jobs(body: PathRequest):
             r.job_id: r for r in session.execute(select(Run).where(Run.id.in_(list(latest_ids.values())))).scalars()
         } if latest_ids else {}
         return {"jobs": [_serialize_job(j, last_runs.get(j.id)) for j in jobs]}
+
+
+_CLONE_HASH_SUFFIX = re.compile(r"-[0-9a-f]{12}$")
+
+
+def _project_display_name(project_key: str) -> Dict[str, str]:
+    repo_path, _, subdirectory = project_key.partition("::")
+    repo = _CLONE_HASH_SUFFIX.sub("", Path(repo_path).name)
+    return {"repo": repo, "subdirectory": subdirectory}
+
+
+def _upstream_url(repo_path: str) -> str:
+    """The repository's origin remote, without any credentials embedded in it ('' if none)."""
+    if not Path(repo_path).is_dir():
+        return ""
+    result = run_git_command(["config", "--get", "remote.origin.url"], repo_path, timeout=5)
+    if not result.success:
+        return ""
+    return re.sub(r"^(\w+://)[^/@]+@", r"\1", result.stdout.strip())
+
+
+@router.get("/projects")
+def list_projects():
+    """Every project that has jobs or runs: number of each, latest run, upstream git URL (read-only overview)."""
+    _require_ready()
+    projects: Dict[str, dict] = {}
+
+    def entry(key: str) -> dict:
+        return projects.setdefault(key, {"project_key": key, **_project_display_name(key), "jobs": 0, "runs": 0, "last_run": None})
+
+    with session_scope() as session:
+        for key, count in session.execute(select(Job.project_key, func.count()).group_by(Job.project_key)).all():
+            entry(key)["jobs"] = count
+        # Runs that happened (or are happening); 'scheduled' rows are only placeholders for the next slot
+        for key, count in session.execute(
+            select(Run.project_key, func.count()).where(Run.status != "scheduled").group_by(Run.project_key)
+        ).all():
+            entry(key)["runs"] = count
+        # Latest run that actually ran (or is running) per project
+        latest = select(Run.project_key, func.max(Run.id).label("id")).where(
+            Run.status.notin_(["scheduled", "skipped"])
+        ).group_by(Run.project_key).subquery()
+        for run in session.execute(select(Run).join(latest, Run.id == latest.c.id)).scalars():
+            entry(run.project_key)["last_run"] = {"status": run.status, "at": to_iso(run.started_at or run.queued_at)}
+
+    upstream_by_repo: Dict[str, str] = {}
+    for project in projects.values():
+        repo_path = project["project_key"].partition("::")[0]
+        if repo_path not in upstream_by_repo:
+            upstream_by_repo[repo_path] = _upstream_url(repo_path)
+        project["upstream_url"] = upstream_by_repo[repo_path]
+    return {"projects": sorted(projects.values(), key=lambda p: (p["repo"].lower(), p["subdirectory"]))}
 
 
 @router.post("/jobs")
