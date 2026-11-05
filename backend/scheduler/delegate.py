@@ -15,7 +15,7 @@ from utils.subprocess_utils import CommandResult, run_command
 
 def run_dbt_command(
     cmd: List[str], path: Path, timeout: int, env: Dict[str, str],
-    command: str, selector: str, target: str, full_refresh: bool,
+    command: str, selector: str, target: str, full_refresh: bool, triggered_by: str = "",
 ) -> CommandResult:
     """Drop-in replacement for run_command() in the manual dbt task (called from a worker thread)."""
     if not scheduler_is_ready():
@@ -24,7 +24,7 @@ def run_dbt_command(
     from scheduler.manager import run_manager
 
     future = asyncio.run_coroutine_threadsafe(
-        run_manager.run_manual(cmd, path, env, command, selector, target, full_refresh),
+        run_manager.run_manual(cmd, path, env, command, selector, target, full_refresh, triggered_by),
         run_manager.loop,
     )
     result = future.result()

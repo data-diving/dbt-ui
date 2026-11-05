@@ -76,6 +76,7 @@ class Job(Base):
     # Where failure notifications go: this channel, or the project's default one when None
     notification_channel_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
+    # Creator, then the last user who changed the job's settings (whose credentials it uses)
     created_by: Mapped[str] = mapped_column(String(200), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)

@@ -14,6 +14,7 @@ from utils.dbt_utils import get_dbt_env, parse_dbt_manifest, get_node_from_manif
 from utils.venv_utils import get_venv_dbt_path
 from utils.operation_lock import acquire_lock, release_lock, is_locked, get_lock_status
 from routes.env_routes import get_env_vars_from_cookie
+from utils.request_user import get_request_user
 from utils.input_validation import validate_dbt_selector, validate_dbt_target
 from utils.subprocess_utils import run_command
 from scheduler.delegate import run_dbt_command
@@ -66,7 +67,7 @@ async def get_dbt_operation_status(project_path: ProjectPath):
     }
 
 
-def run_dbt_command_task(path: Path, command: str, selector: str = "", target: str = "", full_refresh: bool = False, env_vars: dict = None):
+def run_dbt_command_task(path: Path, command: str, selector: str = "", target: str = "", full_refresh: bool = False, env_vars: dict = None, triggered_by: str = ""):
     """Background task to run any dbt command and update dbt_command_status."""
     path_str = str(path)
 
@@ -96,7 +97,7 @@ def run_dbt_command_task(path: Path, command: str, selector: str = "", target: s
         # Get environment with env vars from frontend
         env = get_dbt_env(path, env_vars)
 
-        result = run_dbt_command(cmd, path, 300, env, command, selector, target, full_refresh)
+        result = run_dbt_command(cmd, path, 300, env, command, selector, target, full_refresh, triggered_by)
 
         if result.success:
             dbt_command_status[path_str] = {
@@ -188,7 +189,9 @@ async def dbt_command(action: DbtCommandRequest, background_tasks: BackgroundTas
     env_vars = get_env_vars_from_cookie(request, str(path))
 
     # Always run in background
-    background_tasks.add_task(run_dbt_command_task, path, command, selector, target, action.full_refresh, env_vars)
+    background_tasks.add_task(
+        run_dbt_command_task, path, command, selector, target, action.full_refresh, env_vars, get_request_user(request)
+    )
 
     return {
         "status": "started",

@@ -6,8 +6,8 @@ RUN groupadd --gid 1000 dbtui && \
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# Install system dependencies, picking up Debian security fixes published since the base image was built
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     git \
     curl \
     && rm -rf /var/lib/apt/lists/*
@@ -21,7 +21,7 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
 COPY backend/pyproject.toml backend/uv.lock ./
 
 # Install Python dependencies using uv with lock file (to system Python)
-RUN uv export --frozen --no-hashes > requirements.txt && \
+RUN uv export --frozen --no-dev --no-hashes > requirements.txt && \
     uv pip install --system -r requirements.txt
 
 # Generate licenses

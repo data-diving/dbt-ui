@@ -26,6 +26,7 @@ from scheduler.manager import ACTIVE_STATUSES, SKIPPABLE_STATUSES, SKIPPED_BY_US
 from scheduler.results import node_name
 from scheduler.service import scheduler_service
 from utils.input_validation import validate_dbt_selector, validate_dbt_target
+from utils.request_user import get_request_user
 from utils.subprocess_utils import run_git_command
 
 router = APIRouter(prefix="/api/scheduler")
@@ -119,14 +120,20 @@ def _require_ready() -> None:
         raise HTTPException(status_code=503, detail=scheduler_service.error or "Scheduler is starting")
 
 
-def _project(path: str) -> checkout.ProjectInfo:
+def _project(path: str, request: Optional[Request] = None) -> checkout.ProjectInfo:
     project_path = Path(path).expanduser().resolve()
     if not project_path.exists():
         raise HTTPException(status_code=404, detail="Project path does not exist")
     try:
-        return checkout.resolve_project(project_path)
+        project = checkout.resolve_project(project_path)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    # The user is who the frontend says (the name they commit with); git config is only a
+    # fallback, since it's shared by all worktrees of a repository
+    user = get_request_user(request) if request is not None else ""
+    if user:
+        project.git_user_name = user
+    return project
 
 
 def _validate_job_fields(fields: JobFields) -> JobFields:
@@ -303,7 +310,7 @@ def get_status():
 def get_context(body: PathRequest, request: Request):
     """Everything the job form needs: project identity, default branch, available credentials."""
     _require_ready()
-    project = _project(body.path)
+    project = _project(body.path, request)
     repo = Path(project.repo_path)
     latest = None
     if project.default_branch:
@@ -383,9 +390,27 @@ def _upstream_url(repo_path: str) -> str:
     return re.sub(r"^(\w+://)[^/@]+@", r"\1", result.stdout.strip())
 
 
+def _user_count(repo_path: str) -> int:
+    """Users who opened the repository in dbt UI: its user worktrees (<repos>/worktrees/<repo>-<user>).
+
+    The main clone and the scheduler's job checkouts are not users.
+    """
+    repo = Path(repo_path)
+    if not repo.is_dir():
+        return 0
+    result = run_git_command(["worktree", "list", "--porcelain"], repo_path, timeout=10)
+    if not result.success:
+        return 0
+    prefix = str(repo.parent / "worktrees" / f"{repo.name}-")
+    return sum(
+        1 for line in result.stdout.splitlines()
+        if line.startswith("worktree ") and line[len("worktree "):].startswith(prefix)
+    )
+
+
 @router.get("/projects")
 def list_projects():
-    """Every project that has jobs or runs: number of each, latest run, upstream git URL (read-only overview)."""
+    """Every project that has jobs or runs: number of each, its users, latest run, upstream git URL (read-only overview)."""
     _require_ready()
     projects: Dict[str, dict] = {}
 
@@ -407,12 +432,12 @@ def list_projects():
         for run in session.execute(select(Run).join(latest, Run.id == latest.c.id)).scalars():
             entry(run.project_key)["last_run"] = {"status": run.status, "at": to_iso(run.started_at or run.queued_at)}
 
-    upstream_by_repo: Dict[str, str] = {}
+    repo_info: Dict[str, tuple] = {}
     for project in projects.values():
         repo_path = project["project_key"].partition("::")[0]
-        if repo_path not in upstream_by_repo:
-            upstream_by_repo[repo_path] = _upstream_url(repo_path)
-        project["upstream_url"] = upstream_by_repo[repo_path]
+        if repo_path not in repo_info:
+            repo_info[repo_path] = (_upstream_url(repo_path), _user_count(repo_path))
+        project["upstream_url"], project["users"] = repo_info[repo_path]
     return {"projects": sorted(projects.values(), key=lambda p: (p["repo"].lower(), p["subdirectory"]))}
 
 
@@ -420,7 +445,7 @@ def list_projects():
 def create_job(body: JobCreateRequest, request: Request):
     _require_ready()
     _validate_job_fields(body)
-    project = _project(body.path)
+    project = _project(body.path, request)
     if not project.default_branch:
         raise HTTPException(status_code=400, detail="Could not determine the repository's default branch")
 
@@ -456,27 +481,36 @@ def create_job(body: JobCreateRequest, request: Request):
     return result
 
 
+# Settings whose change transfers a job to the editor. Pausing/resuming (enabled) is not one:
+# it doesn't change what the job does.
+_SETTINGS_FIELDS = (
+    "name", "command", "selector", "target", "full_refresh", "cron", "timeout_seconds",
+    "overlap_policy", "misfire_policy", "pull_latest", "pinned_sha", "credentials_mode", "notification_channel_id",
+)
+
+
+def _job_settings(job: Job) -> tuple:
+    """A job's settings, for detecting whether an update changed anything."""
+    return tuple(getattr(job, field) for field in _SETTINGS_FIELDS)
+
+
 @router.put("/jobs/{job_id}")
 def update_job(job_id: int, body: JobUpdateRequest, request: Request):
     _require_ready()
     _validate_job_fields(body)
-    project = _project(body.path)
+    project = _project(body.path, request)
     git_creds = _user_git_creds(request, project)
 
     with session_scope() as session:
         job = _get_job_for_project(session, job_id, project)
+        before = _job_settings(job)
         cron_changed = job.cron != body.cron
-        switched_to_user = body.credentials_mode == "user" and job.credentials_mode != "user"
 
         if body.credentials_mode == "project":
             creds = session.get(ProjectCredentials, project.project_key)
             if creds is None or not creds.env_encrypted:
                 raise HTTPException(status_code=400, detail="Project credentials are not set for this project")
         _check_channel(session, body.notification_channel_id, project)
-        if body.credentials_mode == "user" and (body.refresh_credentials or switched_to_user):
-            job.env_encrypted = encrypt_dict(get_env_vars_from_cookie(request, body.path))
-        if body.pull_latest and (body.refresh_credentials or not job.git_creds_encrypted) and git_creds:
-            job.git_creds_encrypted = encrypt_dict(git_creds)
 
         if not body.pull_latest and (body.repin or not job.pinned_sha):
             job.pinned_sha = _latest_commit(project, git_creds)["sha"]
@@ -491,6 +525,15 @@ def update_job(job_id: int, body: JobUpdateRequest, request: Request):
             job.next_run_at = next_run_after(job.cron, utcnow())
         if cron_changed:
             job.catchup_since = utcnow()
+        # Saving without changing anything keeps the job as it is. Any change makes the editor
+        # its creator and replaces the previous user's personal credentials with the editor's,
+        # so nobody can change what a job does and keep running it with someone else's credentials.
+        if body.refresh_credentials or _job_settings(job) != before:
+            job.created_by = project.git_user_name
+            job.env_encrypted = (
+                encrypt_dict(get_env_vars_from_cookie(request, body.path)) if job.credentials_mode == "user" else ""
+            )
+            job.git_creds_encrypted = encrypt_dict(git_creds) if git_creds else ""
         sync_scheduled_run(session, job)
         needs_prepare = job.checkout_state != "ready"
         session.flush()
@@ -517,9 +560,9 @@ def delete_job(job_id: int, body: PathRequest):
 
 
 @router.post("/jobs/{job_id}/trigger")
-async def trigger_job(job_id: int, body: PathRequest):
+async def trigger_job(job_id: int, body: PathRequest, request: Request):
     _require_ready()
-    project = await asyncio.to_thread(_project, body.path)
+    project = await asyncio.to_thread(_project, body.path, request)
     with session_scope() as session:
         _get_job_for_project(session, job_id, project)
     run_id = await run_manager.trigger_job(job_id, "run_now", project.git_user_name)
@@ -604,7 +647,7 @@ def _project_runs(session, project: checkout.ProjectInfo, run_ids: List[int]) ->
 
 
 @router.post("/runs/rerun")
-async def rerun_runs(body: RunsActionRequest):
+async def rerun_runs(body: RunsActionRequest, request: Request):
     """Run job runs again with the parameters they were started with, oldest slot first.
 
     Reruns use the job's checkout and current credentials, and either the original commit
@@ -613,7 +656,7 @@ async def rerun_runs(body: RunsActionRequest):
     _require_ready()
     if not body.run_ids:
         raise HTTPException(status_code=400, detail="No runs selected")
-    project = await asyncio.to_thread(_project, body.path)
+    project = await asyncio.to_thread(_project, body.path, request)
     with session_scope() as session:
         runs = _project_runs(session, project, body.run_ids)
         job_ids = {r.job_id for r in runs if r.job_id is not None}
@@ -691,7 +734,7 @@ async def cancel_run(run_id: int):
 @router.post("/project-credentials/set")
 def set_project_credentials(body: ProjectCredentialsSetRequest, request: Request):
     _require_ready()
-    project = _project(body.path)
+    project = _project(body.path, request)
     if body.source == "my_env":
         env_vars = get_env_vars_from_cookie(request, body.path)
     elif body.source == "values":
@@ -816,10 +859,10 @@ def list_notification_channels(body: PathRequest):
 
 
 @router.post("/notifications")
-def create_notification_channel(body: ChannelRequest):
+def create_notification_channel(body: ChannelRequest, request: Request):
     _require_ready()
     _validate_channel(body, require_url=True)
-    project = _project(body.path)
+    project = _project(body.path, request)
     with session_scope() as session:
         has_default = session.execute(
             select(func.count()).select_from(NotificationChannel).where(
@@ -888,10 +931,10 @@ def delete_notification_channel(channel_id: int, body: PathRequest):
 
 
 @router.post("/notifications/{channel_id}/test")
-def test_notification_channel(channel_id: int, body: PathRequest):
+def test_notification_channel(channel_id: int, body: PathRequest, request: Request):
     """Send a notification about the project's latest failed job run, or made-up values if there is none."""
     _require_ready()
-    project = _project(body.path)
+    project = _project(body.path, request)
     with session_scope() as session:
         channel = _project_channel(session, channel_id, project)
         run = session.execute(

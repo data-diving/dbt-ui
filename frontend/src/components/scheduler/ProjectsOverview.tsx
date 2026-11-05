@@ -3,7 +3,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
-import { ProjectOverview, formatUtc, schedulerApi } from './api'
+import { ProjectOverview, schedulerApi } from './api'
+import RelativeTime from './RelativeTime'
 import StatusBadge from './StatusBadge'
 
 interface ProjectsOverviewProps {
@@ -49,7 +50,7 @@ function ProjectsOverview({ currentProjectKey }: ProjectsOverviewProps) {
       {projects && projects.length > 0 && (
         <table className="scheduler-table compact">
           <thead>
-            <tr><th>Project</th><th>Jobs</th><th>Runs</th><th>Last run (UTC)</th></tr>
+            <tr><th>Project</th><th title="Users who opened this project's repository in dbt UI">Users</th><th>Jobs</th><th>Runs</th><th>Last run</th></tr>
           </thead>
           <tbody>
             {projects.map(project => (
@@ -59,11 +60,12 @@ function ProjectsOverview({ currentProjectKey }: ProjectsOverviewProps) {
                   {project.subdirectory && <span className="muted mono"> / {project.subdirectory}</span>}
                   {project.project_key === currentProjectKey && <span className="scheduler-default-label">current</span>}
                 </td>
+                <td>{project.users}</td>
                 <td>{project.jobs}</td>
                 <td>{project.runs}</td>
                 <td>
                   {project.last_run
-                    ? <><StatusBadge status={project.last_run.status} /> <span className="muted">{formatUtc(project.last_run.at)}</span></>
+                    ? <><StatusBadge status={project.last_run.status} /> <RelativeTime className="muted" value={project.last_run.at} /></>
                     : <span className="muted">—</span>}
                 </td>
               </tr>

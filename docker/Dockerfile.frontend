@@ -27,6 +27,9 @@ RUN npx license-checker --production --markdown --out /app/LICENSES-FRONTEND.md
 # Production stage with nginx
 FROM nginx:alpine
 
+# Pick up Alpine security fixes published since the base image was built
+RUN apk upgrade --no-cache
+
 # Copy built assets from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
