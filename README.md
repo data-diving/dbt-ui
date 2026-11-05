@@ -131,6 +131,7 @@ For license texts and copyright information, check each package's GitHub reposit
 | lucide-react | ISC | ^0.294.0 | https://github.com/lucide-icons/lucide |
 | react | MIT | ^18.2.0 | https://github.com/facebook/react |
 | react-dom | MIT | ^18.2.0 | https://github.com/facebook/react |
+| react-markdown | MIT | ^9.0.1 | https://github.com/remarkjs/react-markdown |
 | react-split-pane | MIT | ^3.0.4 | https://github.com/tomkp/react-split-pane |
 | reactflow | MIT | ^11.11.4 | https://github.com/xyflow/xyflow |
 | typescript | Apache-2.0 | ^5.2.2 | https://github.com/microsoft/TypeScript |
@@ -141,12 +142,13 @@ For license texts and copyright information, check each package's GitHub reposit
 
 | Package | License | Version | Repository |
 |---------|---------|---------|------------|
-| fastapi | MIT | 0.109.0 | https://github.com/tiangolo/fastapi |
-| uvicorn | BSD-3-Clause | 0.27.0 | https://github.com/encode/uvicorn |
-| pydantic | MIT | 2.5.3 | https://github.com/pydantic/pydantic |
-| python-multipart | Apache-2.0 | 0.0.6 | https://github.com/Kludex/python-multipart |
+| fastapi | MIT | 0.162.0 | https://github.com/tiangolo/fastapi |
+| uvicorn | BSD-3-Clause | 0.54.0 | https://github.com/encode/uvicorn |
+| pydantic | MIT | 2.14.2 | https://github.com/pydantic/pydantic |
+| python-multipart | Apache-2.0 | 0.0.33 | https://github.com/Kludex/python-multipart |
 | pyyaml | MIT | >=6.0 | https://github.com/yaml/pyyaml |
 | packaging | Apache-2.0 | >=23.0 | https://github.com/pypa/packaging |
+| metadv | MIT | >=0.1.0 | https://github.com/data-diving/metadv |
 | sqlalchemy | MIT | >=2.0 | https://github.com/sqlalchemy/sqlalchemy |
 | alembic | MIT | >=1.13 | https://github.com/sqlalchemy/alembic |
 | pg8000 | BSD-3-Clause | >=1.30 | https://codeberg.org/tlocke/pg8000 |
