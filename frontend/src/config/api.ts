@@ -51,12 +51,30 @@ export function apiUrl(endpoint: string): string {
  * @param init - Optional fetch init options
  * @returns Promise<Response>
  */
+// Same key App.tsx stores the git identity under (set up on first launch)
+const GIT_CONFIG_KEY = 'dbt-ui-git-config'
+
+/**
+ * Header naming the dbt UI user (their git user name, as used for their commits), so the
+ * backend records who created jobs or started runs. URL-encoded: headers must be ASCII.
+ */
+export function getUserHeaders(): Record<string, string> {
+  try {
+    const stored = localStorage.getItem(GIT_CONFIG_KEY)
+    const userName = stored ? JSON.parse(stored).userName : ''
+    return userName ? { 'X-DBT-UI-User': encodeURIComponent(userName) } : {}
+  } catch {
+    return {}
+  }
+}
+
 export function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const authHeaders = getAuthHeaders()
   const mergedInit: RequestInit = {
     ...init,
     headers: {
       ...authHeaders,
+      ...getUserHeaders(),
       ...init?.headers,
     },
   }

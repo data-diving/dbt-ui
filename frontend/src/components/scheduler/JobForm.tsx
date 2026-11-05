@@ -250,10 +250,13 @@ function JobForm({ projectPath, context, job, profileTargets, defaultTarget, onC
             <div className="scheduler-hint">
               A snapshot of your current env vars is stored encrypted with the job
               {isNew ? '.' : (
-                <label className="scheduler-check inline">
-                  <input type="checkbox" checked={refreshCredentials} onChange={e => setRefreshCredentials(e.target.checked)} />
-                  <span>Replace the stored snapshot with my current env vars</span>
-                </label>
+                <>
+                  . Saving any change replaces the stored env vars and git credentials with yours.
+                  <label className="scheduler-check inline">
+                    <input type="checkbox" checked={refreshCredentials} onChange={e => setRefreshCredentials(e.target.checked)} />
+                    <span>Replace the stored snapshot with my current env vars</span>
+                  </label>
+                </>
               )}
             </div>
           )}

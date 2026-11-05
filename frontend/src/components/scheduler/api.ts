@@ -133,6 +133,7 @@ export interface Job extends JobFields {
   has_git_credentials: boolean
   checkout_state: 'pending' | 'preparing' | 'ready' | 'error'
   checkout_error: string
+  // Creator, then the last user who changed the job's settings (whose credentials it uses)
   created_by: string
   created_at: string
   updated_at: string
@@ -201,6 +202,8 @@ export interface ProjectOverview {
   subdirectory: string
   jobs: number
   runs: number
+  // Users who opened the project's repository in dbt UI (their workspaces)
+  users: number
   // Latest run that ran or is running (skipped runs not counted)
   last_run: { status: RunStatus; at: string | null } | null
   // origin remote of the repository, without credentials ('' if none)
@@ -269,6 +272,28 @@ export function formatUtc(value: string | null | undefined, withSeconds = false)
   if (!value) return '—'
   const iso = new Date(value).toISOString()
   return `${iso.slice(0, 10)} ${iso.slice(11, withSeconds ? 19 : 16)}`
+}
+
+const DAY_SECONDS = 24 * 3600
+
+// "5 minutes ago" / "in 5 minutes", "yesterday" / "tomorrow", up to years
+export function formatRelative(value: string | null | undefined, nowMs: number): string {
+  if (!value) return '—'
+  const diff = (Date.parse(value) - nowMs) / 1000
+  const seconds = Math.round(Math.abs(diff))
+  const future = diff > 0
+  const days = Math.floor(seconds / DAY_SECONDS)
+  if (days === 1) return future ? 'tomorrow' : 'yesterday'
+  const [count, unit] =
+    seconds < 60 ? [seconds, 'second']
+      : seconds < 3600 ? [Math.floor(seconds / 60), 'minute']
+        : seconds < DAY_SECONDS ? [Math.floor(seconds / 3600), 'hour']
+          : days < 7 ? [days, 'day']
+            : days < 30 ? [Math.floor(days / 7), 'week']
+              : days < 365 ? [Math.floor(days / 30), 'month']
+                : [Math.floor(days / 365), 'year']
+  const text = `${count} ${unit}${count === 1 ? '' : 's'}`
+  return future ? `in ${text}` : `${text} ago`
 }
 
 export function formatDuration(seconds: number | null | undefined): string {

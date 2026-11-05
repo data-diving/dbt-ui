@@ -248,7 +248,7 @@ class RunManager:
 
     async def run_manual(
         self, cmd: List[str], project_dir: Path, env: Dict[str, str],
-        command: str, selector: str, target: str, full_refresh: bool,
+        command: str, selector: str, target: str, full_refresh: bool, triggered_by: str = "",
     ) -> ExecutionResult:
         """Run a manual dbt command in the user's worktree and record it.
 
@@ -258,11 +258,12 @@ class RunManager:
         """
         try:
             project = await asyncio.to_thread(checkout.resolve_project, project_dir)
-            project_key, triggered_by = project.project_key, project.git_user_name
+            # The user who started it (sent by the frontend); git config only as a fallback
+            project_key, triggered_by = project.project_key, triggered_by or project.git_user_name
             commit = await asyncio.to_thread(_head_sha, project_dir)
         except Exception as e:
             print(f"[scheduler] Could not resolve project for manual run: {e}")
-            project_key, triggered_by, commit = str(project_dir), "", ""
+            project_key, commit = str(project_dir), ""
 
         run_id = await asyncio.to_thread(
             _create_run,

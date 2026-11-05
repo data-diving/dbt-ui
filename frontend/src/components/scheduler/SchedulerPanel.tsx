@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { MouseEvent, useEffect, useState } from 'react'
 import {
   AlertTriangle, Clock, Edit2, KeyRound, Loader2, PauseCircle, Play, PlayCircle, Plus, RotateCcw, SkipForward, Trash2, X,
 } from 'lucide-react'
@@ -13,6 +13,7 @@ import ProjectsOverview from './ProjectsOverview'
 import RunDetails from './RunDetails'
 import RerunModal from './RerunModal'
 import StatusBadge from './StatusBadge'
+import RelativeTime from './RelativeTime'
 import { statusColor } from './statusColors'
 import { SortAccessors, SortHeader, useSortedRows } from './sorting'
 import ConfirmModal from '../main/ConfirmModal'
@@ -136,7 +137,7 @@ function RunsTable({ runs, nowMs, selected, canRerun, onSelect, onToggleSelected
                 title="Select all runs in this period"
               />
             </th>
-            {header('id', '#')}{header('started', 'Started (UTC)')}{header('slot', 'Scheduled for (UTC)', SLOT_HELP)}{header('job', 'Job')}{header('command', 'Command')}
+            {header('id', '#')}{header('started', 'Started')}{header('slot', 'Scheduled for', SLOT_HELP)}{header('job', 'Job')}{header('command', 'Command')}
             {header('status', 'Status')}{header('duration', 'Duration')}{header('memory', 'Peak memory')}
             {header('rows', 'Rows', ROWS_AFFECTED_HELP)}{header('trigger', 'Triggered by')}{header('commit', 'Commit')}
             <th />
@@ -160,8 +161,8 @@ function RunsTable({ runs, nowMs, selected, canRerun, onSelect, onToggleSelected
                 />
               </td>
               <td className="muted">{run.id}</td>
-              <td>{run.status === 'scheduled' ? <span className="muted">—</span> : formatUtc(run.started_at ?? run.queued_at)}</td>
-              <td className="muted">{run.scheduled_for ? formatUtc(run.scheduled_for) : '—'}</td>
+              <td>{run.status === 'scheduled' ? <span className="muted">—</span> : <RelativeTime value={run.started_at ?? run.queued_at} nowMs={nowMs} />}</td>
+              <td className="muted"><RelativeTime value={run.scheduled_for} nowMs={nowMs} /></td>
               <td>{run.job_name || <span className="muted">manual</span>}</td>
               <td className="mono">{run.command}{run.selector ? ` ${run.selector}` : ''}</td>
               <td title={run.status === 'skipped' ? run.error : undefined}>
@@ -319,6 +320,7 @@ function SchedulerPanel({ projectPath, scheduler, profileTargets, selectedTarget
             onDelete={deleteJob}
             onOpenRun={openRun}
             onNew={() => setEditing('new')}
+            nowMs={scheduler.serverNow}
           />
         )}
 
@@ -481,9 +483,12 @@ interface JobsTableProps {
   onDelete: (job: Job) => void
   onOpenRun: (runId: number) => void
   onNew: () => void
+  nowMs: number
 }
 
-function JobsTable({ jobs, branch, busyJobId, onRunNow, onEdit, onToggle, onDelete, onOpenRun, onNew }: JobsTableProps) {
+const stopClick = (e: MouseEvent) => e.stopPropagation()
+
+function JobsTable({ jobs, branch, busyJobId, onRunNow, onEdit, onToggle, onDelete, onOpenRun, onNew, nowMs }: JobsTableProps) {
   if (jobs.length === 0) {
     return (
       <div className="scheduler-empty">
@@ -493,16 +498,16 @@ function JobsTable({ jobs, branch, busyJobId, onRunNow, onEdit, onToggle, onDele
     )
   }
   return (
-    <table className="scheduler-table">
+    <table className="scheduler-table clickable">
       <thead>
         <tr>
           <th>Name</th><th>Command</th><th>Schedule (UTC)</th><th>Next run</th><th>Code</th>
-          <th>Credentials</th><th>Last run</th><th></th>
+          <th>Credentials</th><th title="Who created the job, or last changed its settings">Created by</th><th>Last run</th><th></th>
         </tr>
       </thead>
       <tbody>
         {jobs.map(job => (
-          <tr key={job.id}>
+          <tr key={job.id} onClick={() => onEdit(job)} title="Edit job">
             <td>
               {job.name}
               {job.checkout_state === 'preparing' && (
@@ -522,22 +527,23 @@ function JobsTable({ jobs, branch, busyJobId, onRunNow, onEdit, onToggle, onDele
               <span className="mono">{job.cron}</span>
               {!job.enabled && <span className="scheduler-paused-label">paused</span>}
             </td>
-            <td>{job.enabled ? formatUtc(job.next_run_at) : <span className="muted">—</span>}</td>
+            <td>{job.enabled ? <RelativeTime value={job.next_run_at} nowMs={nowMs} /> : <span className="muted">—</span>}</td>
             <td title={job.pull_latest ? `Pulls latest ${branch} before each run` : `Pinned to ${job.pinned_sha}`}>
               {job.pull_latest ? <>latest <code>{branch}</code></> : <>pinned <code>{job.pinned_sha.slice(0, 8)}</code></>}
             </td>
             <td title={job.credentials_mode === 'user' ? job.env_var_names.join(', ') : 'Project credentials'}>
               {job.credentials_mode === 'user' ? `${job.created_by || 'creator'}'s` : 'project'}
             </td>
-            <td>
+            <td>{job.created_by || <span className="muted">—</span>}</td>
+            <td onClick={job.last_run ? stopClick : undefined}>
               {job.last_run ? (
                 <button className="link-button" onClick={() => onOpenRun(job.last_run!.id)}>
                   <StatusBadge status={job.last_run.status} />{' '}
-                  <span className="muted">{formatUtc(job.last_run.started_at ?? job.last_run.queued_at)}</span>
+                  <RelativeTime className="muted" value={job.last_run.started_at ?? job.last_run.queued_at} nowMs={nowMs} />
                 </button>
               ) : <span className="muted">never</span>}
             </td>
-            <td className="scheduler-actions">
+            <td className="scheduler-actions" onClick={stopClick}>
               <button className="scheduler-icon-button" title="Run now" onClick={() => onRunNow(job)} disabled={busyJobId === job.id}>
                 <Play size={14} />
               </button>
