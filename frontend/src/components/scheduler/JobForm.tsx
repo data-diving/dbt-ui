@@ -30,6 +30,8 @@ const CRON_PRESETS: { label: string; cron: string }[] = [
 
 // Same rules as the backend selector validation
 const SELECTOR_PATTERN = /^[a-zA-Z0-9_.:+@*\-/\s,]*$/
+// Backend limit: timeout_seconds at most 7 days
+const MAX_TIMEOUT_MINUTES = 7 * 24 * 60
 
 function JobForm({ projectPath, context, job, profileTargets, defaultTarget, onClose, onSaved }: JobFormProps) {
   const [fields, setFields] = useState<JobFields>(() => job ? {
@@ -82,7 +84,8 @@ function JobForm({ projectPath, context, job, profileTargets, defaultTarget, onC
   }, [job, projectPath])
 
   const selectorValid = SELECTOR_PATTERN.test(fields.selector)
-  const canSave = fields.name.trim() !== '' && selectorValid && preview?.valid !== false && !saving &&
+  const timeoutValid = fields.timeout_seconds <= MAX_TIMEOUT_MINUTES * 60
+  const canSave = fields.name.trim() !== '' && selectorValid && timeoutValid && preview?.valid !== false && !saving &&
     !(fields.credentials_mode === 'project' && projectCredNames.length === 0)
 
   const handleSave = async () => {
@@ -268,9 +271,13 @@ function JobForm({ projectPath, context, job, profileTargets, defaultTarget, onC
               <input
                 type="number"
                 min={1}
+                max={MAX_TIMEOUT_MINUTES}
                 value={Math.round(fields.timeout_seconds / 60)}
                 onChange={e => set('timeout_seconds', Math.max(1, Number(e.target.value) || 1) * 60)}
               />
+              {!timeoutValid && (
+                <em className="scheduler-error-text">Timeout can be at most {MAX_TIMEOUT_MINUTES} minutes (7 days)</em>
+              )}
             </label>
             <label className="scheduler-field">
               <span>If the previous run is still going</span>

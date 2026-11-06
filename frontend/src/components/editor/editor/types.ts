@@ -24,6 +24,8 @@ export interface EditorProps {
   onFileModified?: (filePath: string, isModified: boolean) => void
   onFileSaved?: (filePath: string) => void
   dbtVersion?: string
+  // profiles.yml target selected in the lineage panel; Preview data reads the model from it
+  selectedTarget?: string
   onUnsavedChangesStateChange?: (hasChanges: boolean) => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
 }

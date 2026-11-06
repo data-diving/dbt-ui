@@ -39,6 +39,13 @@ COPY LICENSE /app/
 RUN mkdir -p /home/dbtui/git-repos /home/dbtui/data && \
     chown -R dbtui:dbtui /app /home/dbtui/git-repos /home/dbtui/data
 
+# Pythons that uv downloads for projects (.python-version / requires-python) and uv's package
+# cache live next to the repositories and their venvs, in the mounted folder: a venv only links to
+# its Python, so keeping that in the container's home would break every venv when the container is
+# recreated. Hidden folder, so the file browser doesn't show it.
+ENV UV_PYTHON_INSTALL_DIR=/home/dbtui/git-repos/.dbt-ui/python \
+    UV_CACHE_DIR=/home/dbtui/git-repos/.dbt-ui/uv-cache
+
 # Switch to non-root user
 USER dbtui
 

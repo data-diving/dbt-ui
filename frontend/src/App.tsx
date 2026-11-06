@@ -4,19 +4,10 @@ import GitSetupDialog, { GitConfig } from './components/git/GitSetupDialog'
 import ProjectPathDialog from './components/main/ProjectPathDialog'
 import MainLayout from './components/main/MainLayout'
 import { apiUrl, apiFetch } from './config/api'
+import { RecentProject, loadRecentProjects, saveRecentProject } from './components/main/recentProjects'
 
 const STORAGE_KEY = 'dbt-ui-project-path'
 const GIT_CONFIG_KEY = 'dbt-ui-git-config'
-const RECENT_PROJECTS_KEY = 'dbt-ui-recent-projects'
-const MAX_RECENT_PROJECTS = 3
-
-interface RecentProject {
-  path: string
-  name: string
-  displayPath: string  // Original input (git URL or local path)
-  lastOpened: number
-}
-
 function App() {
   const [gitConfig, setGitConfig] = useState<GitConfig | null>(null)
   const [projectPath, setProjectPath] = useState<string | null>(null)
@@ -25,51 +16,9 @@ function App() {
   const [isEditingGitConfig, setIsEditingGitConfig] = useState(false)
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([])
 
-  // Load recent projects from localStorage
-  const loadRecentProjects = (): RecentProject[] => {
-    try {
-      const stored = localStorage.getItem(RECENT_PROJECTS_KEY)
-      if (stored) {
-        return JSON.parse(stored)
-      }
-    } catch (e) {
-      console.error('Failed to load recent projects:', e)
-    }
-    return []
-  }
-
   // Save a project to recent projects list
   const saveToRecentProjects = (path: string, displayPath: string, projectName?: string) => {
-    const projects = loadRecentProjects()
-
-    // Use dbt project name if available, otherwise extract from displayPath
-    let name = projectName
-    if (!name) {
-      if (displayPath.includes('://') || displayPath.startsWith('git@')) {
-        // Git URL - extract repo name
-        const match = displayPath.match(/\/([^/]+?)(\.git)?$/)
-        name = match ? match[1] : displayPath
-      } else {
-        // Local path - use last segment
-        name = displayPath.split('/').filter(Boolean).pop() || displayPath
-      }
-    }
-
-    // Remove if already exists (by worktree path)
-    const filtered = projects.filter((p) => p.path !== path)
-
-    // Add to front
-    const updated: RecentProject[] = [
-      { path, name, displayPath, lastOpened: Date.now() },
-      ...filtered,
-    ].slice(0, MAX_RECENT_PROJECTS)
-
-    try {
-      localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(updated))
-      setRecentProjects(updated)
-    } catch (e) {
-      console.error('Failed to save recent projects:', e)
-    }
+    setRecentProjects(saveRecentProject(path, displayPath, projectName))
   }
 
   // Check for existing git config on mount

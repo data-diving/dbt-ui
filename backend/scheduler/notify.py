@@ -85,6 +85,11 @@ def run_url(run_id: int) -> str:
     return f"{base_url}/?scheduler_run={run_id}" if base_url else ""
 
 
+def app_url() -> str:
+    """dbt UI's address (DBT_UI__FRONTEND_URL), or "" when it isn't set."""
+    return config.settings.ui_url
+
+
 def run_values(run: Run) -> Dict[str, str]:
     error = run.error or ""
     return {

@@ -17,9 +17,22 @@ from routes.env_routes import get_env_vars_from_cookie
 from utils.request_user import get_request_user
 from utils.input_validation import validate_dbt_selector, validate_dbt_target
 from utils.subprocess_utils import run_command
+from scheduler import config as scheduler_config
 from scheduler.delegate import run_dbt_command
 
 router = APIRouter()
+
+
+def _duration(seconds: float) -> str:
+    """'45 seconds', '5 minutes', '1 hour', '1 hour 30 minutes'."""
+    seconds = int(seconds)
+    if seconds < 60:
+        return f"{seconds} second{'s' if seconds != 1 else ''}"
+    hours, minutes = divmod(seconds // 60, 60)
+    parts = [f"{hours} hour{'s' if hours != 1 else ''}"] if hours else []
+    if minutes or not hours:
+        parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
+    return " ".join(parts)
 
 # Global dbt command status tracker (for all background dbt operations)
 dbt_command_status: Dict[str, Dict[str, any]] = {}
@@ -97,7 +110,9 @@ def run_dbt_command_task(path: Path, command: str, selector: str = "", target: s
         # Get environment with env vars from frontend
         env = get_dbt_env(path, env_vars)
 
-        result = run_dbt_command(cmd, path, 300, env, command, selector, target, full_refresh, triggered_by)
+        result = run_dbt_command(
+            cmd, path, scheduler_config.settings.manual_timeout, env, command, selector, target, full_refresh, triggered_by
+        )
 
         if result.success:
             dbt_command_status[path_str] = {
@@ -115,13 +130,13 @@ def run_dbt_command_task(path: Path, command: str, selector: str = "", target: s
                 "completed_at": datetime.now().isoformat(),
                 "error": result.error
             }
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as e:
         dbt_command_status[path_str] = {
             "status": "failed",
             "command": command,
             "selector": selector,
             "completed_at": datetime.now().isoformat(),
-            "error": f"dbt {command} timed out after 5 minutes"
+            "error": f"dbt {command} timed out after {_duration(e.timeout)} (DBT_UI__SCHEDULER_MANUAL_TIMEOUT)"
         }
     except Exception as e:
         dbt_command_status[path_str] = {
@@ -234,7 +249,7 @@ async def dbt_test_model(action: DbtCommandRequest, background_tasks: Background
 
 
 @router.post("/api/dbt-ls")
-async def dbt_ls(ls_request: DbtLsRequest):
+async def dbt_ls(ls_request: DbtLsRequest, request: Request):
     """Run dbt ls to get list of models matching a selector."""
     path = Path(ls_request.path).expanduser().resolve()
 
@@ -260,9 +275,10 @@ async def dbt_ls(ls_request: DbtLsRequest):
         print(f"[dbt-ls] Running: {' '.join(cmd)}")
 
         # Get environment with dbt-ui env vars loaded
-        env = get_dbt_env(path)
+        # With the user's env vars: profiles.yml may use env_var()
+        env = get_dbt_env(path, get_env_vars_from_cookie(request, str(path)))
 
-        result = run_command(cmd, path, timeout=30, env=env)
+        result = run_command(cmd, path, timeout=30, env=env, low_priority=True)
 
         if result.success:
             # Parse output - each line is a model name (e.g., "my_project.model_name")
@@ -311,6 +327,8 @@ async def dbt_show_model(show_request: DbtShowRequest, http_request: Request):
     # Validate model name for security
     model = validate_dbt_selector(show_request.model, "model")
 
+    target = validate_dbt_target(show_request.target) if show_request.target else ""
+
     # Validate limit (already an int from Pydantic, but ensure reasonable bounds)
     limit = min(max(1, show_request.limit), 1000)
 
@@ -340,22 +358,9 @@ async def dbt_show_model(show_request: DbtShowRequest, http_request: Request):
                 "rows": []
             }
 
-        # Build the fully qualified table name (schema.table or database.schema.table)
-        schema = node.get('schema', '')
-        # Use alias if set, otherwise model name
-        table_name = node.get('alias') or model
-
-        if not schema:
-            return {
-                "success": False,
-                "error": f"Could not determine schema for model '{model}'",
-                "columns": [],
-                "rows": []
-            }
-
-        # Build inline SQL query
-        qualified_name = f"{schema}.{table_name}"
-        inline_sql = f"select * from {qualified_name}"
+        # Read the model's built relation in the selected target: ref() resolves database, schema
+        # and alias for that target (the manifest only knows the target it was last compiled for)
+        inline_sql = f"select * from {{{{ ref('{node.get('name') or model}') }}}}"
 
         # Run dbt show with inline query and JSON output
         cmd = [
@@ -366,6 +371,8 @@ async def dbt_show_model(show_request: DbtShowRequest, http_request: Request):
             "--project-dir", str(path),
             "--profiles-dir", str(path)
         ]
+        if target:
+            cmd.extend(["--target", target])
 
         print(f"[dbt-show-model] Running: {' '.join(cmd)}")
 
@@ -373,10 +380,9 @@ async def dbt_show_model(show_request: DbtShowRequest, http_request: Request):
         env_vars = get_env_vars_from_cookie(http_request, str(path))
         env = get_dbt_env(path, env_vars)
 
-        result = run_command(cmd, path, timeout=120, env=env)
+        result = run_command(cmd, path, timeout=120, env=env, low_priority=True)
 
         print(f"[dbt-show-model] Return code: {result.returncode}")
-        print(f"[dbt-show-model] Stdout: {result.stdout[:500] if result.stdout else 'empty'}")
         print(f"[dbt-show-model] Stderr: {result.stderr[:500] if result.stderr else 'empty'}")
 
         if not result.success:
@@ -400,8 +406,6 @@ async def dbt_show_model(show_request: DbtShowRequest, http_request: Request):
 
         columns = []
         rows = []
-
-        print(f"[dbt-show-model] Full stdout:\n{stdout}")
 
         # dbt 1.9+ outputs JSON as a multi-line pretty-printed object
         # Find JSON by looking for lines that start with '{' and extracting the complete JSON block
@@ -591,7 +595,7 @@ async def get_metadata(file_data: dict):
         'name': file_name,
         'type': obj_type,
         'description': '',
-        'note': 'Click the compile button in the sidebar to generate metadata.'
+        'note': 'Click Compile in the lineage panel header to generate metadata.'
     }
 
 

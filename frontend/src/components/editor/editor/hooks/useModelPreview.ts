@@ -11,7 +11,12 @@ interface UseModelPreviewResult {
   showPreviewConfirm: boolean
   setShowPreviewConfirm: React.Dispatch<React.SetStateAction<boolean>>
   previewCache: React.MutableRefObject<Map<string, ModelPreviewData>>
-  loadModelPreview: (selectedFile: string, projectPath: string) => Promise<void>
+  loadModelPreview: (selectedFile: string, projectPath: string, target?: string) => Promise<void>
+}
+
+// Previews are cached per target and file: switching the target must not show another target's data
+export function previewCacheKey(target: string, selectedFile: string): string {
+  return `${target}::${selectedFile}`
 }
 
 export function useModelPreview(): UseModelPreviewResult {
@@ -20,7 +25,7 @@ export function useModelPreview(): UseModelPreviewResult {
   const [showPreviewConfirm, setShowPreviewConfirm] = useState(false)
   const previewCache = useRef<Map<string, ModelPreviewData>>(new Map())
 
-  const loadModelPreview = async (selectedFile: string, projectPath: string) => {
+  const loadModelPreview = async (selectedFile: string, projectPath: string, target = '') => {
     if (!selectedFile || !projectPath) return
 
     const modelName = selectedFile.split('/').pop()?.replace('.sql', '') || ''
@@ -41,7 +46,8 @@ export function useModelPreview(): UseModelPreviewResult {
         body: JSON.stringify({
           path: projectPath,
           model: modelName,
-          limit: fetchLimit
+          limit: fetchLimit,
+          target
         }),
       })
 
@@ -73,7 +79,7 @@ export function useModelPreview(): UseModelPreviewResult {
         }
       }
 
-      previewCache.current.set(selectedFile, previewData)
+      previewCache.current.set(previewCacheKey(target, selectedFile), previewData)
       setModelPreview(previewData)
     } catch (err) {
       console.error('Error loading model preview:', err)
@@ -82,7 +88,7 @@ export function useModelPreview(): UseModelPreviewResult {
         rows: [],
         error: 'Error connecting to backend'
       }
-      previewCache.current.set(selectedFile, errorData)
+      previewCache.current.set(previewCacheKey(target, selectedFile), errorData)
       setModelPreview(errorData)
     } finally {
       setLoadingPreview(false)

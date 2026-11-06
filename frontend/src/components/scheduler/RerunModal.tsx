@@ -90,7 +90,7 @@ function RerunModal({ runs, jobs, branch, onClose, onConfirm }: RerunModalProps)
               <dt>Original run</dt>
               <dd>{single.status} · started {formatUtc(single.started_at ?? single.queued_at, true)} UTC</dd>
               <dt>Credentials</dt><dd>{credentialsLabel(singleJob)}</dd>
-              <dt>Timeout</dt><dd>{singleJob ? `${singleJob.timeout_seconds}s (the job's current setting)` : '—'}</dd>
+              <dt>Timeout</dt><dd>{singleJob ? `${Math.round(singleJob.timeout_seconds / 60)} minutes (the job's current setting)` : '—'}</dd>
             </dl>
           ) : (
             <div className="rerun-table-wrap">

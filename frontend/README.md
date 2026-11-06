@@ -8,7 +8,7 @@ React + TypeScript web application for the dbt-ui project.
 - **Code Editor**: Monaco Editor with SQL and YAML syntax highlighting
 - **Lineage Graph**: Interactive DAG visualization using ReactFlow
 - **dbt Commands**: Run, test, compile, and seed operations
-- **Environment Variables**: Manage `.dbt-ui-env` file for dbt commands
+- **Environment Variables**: Set values for the project's `env_var()` calls (kept per project in a browser cookie)
 
 ## Installation
 
@@ -48,15 +48,15 @@ npm run lint
 
 ```
 src/
-├── components/         # React components
-│   ├── Editor.tsx      # Monaco code editor
-│   ├── GraphView.tsx   # Lineage graph panel
-│   ├── LineageGraph.tsx # ReactFlow DAG
-│   ├── MainLayout.tsx  # Main app layout
-│   ├── Sidebar.tsx     # File tree browser
-│   └── ...
+├── components/
+│   ├── main/           # Layout, project dialog, sidebar (file tree), shared modals
+│   ├── editor/         # Monaco editor, data preview, lineage graph, properties panel
+│   ├── dbt/            # dbt run results and env vars dialogs
+│   ├── git/            # Git dialog, credentials and identity setup
+│   ├── metadv/         # MetaDV (Data Vault) dialog
+│   └── scheduler/      # Scheduler: jobs, runs, timeline, settings
 ├── config/
-│   └── api.ts          # API URL configuration
+│   └── api.ts          # API URL, auth and user headers
 ├── App.tsx             # Root component
 ├── main.tsx            # Entry point
 └── App.css             # Global styles

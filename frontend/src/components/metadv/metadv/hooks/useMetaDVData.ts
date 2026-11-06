@@ -17,7 +17,8 @@ interface UseMetaDVDataResult {
   hasUnsavedChanges: boolean
   setHasUnsavedChanges: React.Dispatch<React.SetStateAction<boolean>>
   initializeAndLoad: () => Promise<void>
-  handleSave: (connections: Connection[]) => Promise<void>
+  // Resolves to true when the save succeeded
+  handleSave: (connections: Connection[]) => Promise<boolean>
   handleGenerate: () => Promise<{ success: boolean; generatedFiles: string[] }>
 }
 
@@ -82,7 +83,7 @@ export function useMetaDVData(projectPath: string): UseMetaDVDataResult {
     }
   }
 
-  const handleSave = async (connections: Connection[]) => {
+  const handleSave = async (connections: Connection[]): Promise<boolean> => {
     setSaving(true)
     setError(null)
     setSuccessMessage(null)
@@ -192,6 +193,7 @@ export function useMetaDVData(projectPath: string): UseMetaDVDataResult {
         setSuccessMessage('Saved successfully')
         setHasUnsavedChanges(false)
         setTimeout(() => setSuccessMessage(null), 3000)
+        return true
       } else {
         setError(result.error || 'Failed to save')
       }
@@ -200,6 +202,7 @@ export function useMetaDVData(projectPath: string): UseMetaDVDataResult {
     } finally {
       setSaving(false)
     }
+    return false
   }
 
   const handleGenerate = async (): Promise<{ success: boolean; generatedFiles: string[] }> => {

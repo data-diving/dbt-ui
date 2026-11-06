@@ -31,15 +31,6 @@ function MetadataSidebar({ selectedFile, projectPath, compilationTrigger }: Meta
       return
     }
 
-    // Check if selectedFile is a folder (no file extension)
-    const isFolder = !selectedFile.includes('.')
-    if (isFolder) {
-      console.log('[MetadataSidebar] Folder selected, not loading metadata:', selectedFile)
-      setMetadata(null)
-      setLoading(false)
-      return
-    }
-
     let cancelled = false
 
     const loadData = async () => {

@@ -7,7 +7,7 @@ interface UseFileOperationsProps {
   projectPath: string
   selectedFile: string | null
   selectedIsFolder: boolean
-  onFileSelect: (file: string) => void
+  onFileSelect: (file: string, isFolder?: boolean) => void
   onRefreshModifiedFiles?: () => void
   onPackagesFileChanged?: () => void
   onTreeRefreshNeeded: () => Promise<void>
@@ -19,7 +19,7 @@ interface UseFileOperationsResult {
   handleRenameConfirm: (newName?: string) => Promise<void>
   handleDeleteConfirm: () => Promise<void>
   handleRestoreFile: (deletedFile: string) => Promise<void>
-  handleMoveFile: (sourcePath: string, targetFolder: string) => Promise<void>
+  handleMoveFile: (sourcePath: string, targetFolder: string, isFolder: boolean) => Promise<void>
 }
 
 export function useFileOperations({
@@ -92,7 +92,7 @@ export function useFileOperations({
         const data = await response.json()
         console.log(`Renamed ${itemType}: ${selectedFile} -> ${data.new_path}`)
         await onTreeRefreshNeeded()
-        onFileSelect(data.new_path)
+        onFileSelect(data.new_path, selectedIsFolder)
         if (onRefreshModifiedFiles) {
           onRefreshModifiedFiles()
         }
@@ -199,7 +199,7 @@ export function useFileOperations({
     }
   }
 
-  const handleMoveFile = async (sourcePath: string, targetFolder: string) => {
+  const handleMoveFile = async (sourcePath: string, targetFolder: string, isFolder: boolean) => {
     const fileName = sourcePath.split('/').pop() || ''
     const newPath = targetFolder ? `${targetFolder}/${fileName}` : fileName
 
@@ -219,7 +219,7 @@ export function useFileOperations({
       if (response.ok) {
         console.log(`Moved: ${sourcePath} -> ${newPath}`)
         await onTreeRefreshNeeded()
-        onFileSelect(newPath)
+        onFileSelect(newPath, isFolder)
         if (onRefreshModifiedFiles) {
           onRefreshModifiedFiles()
         }

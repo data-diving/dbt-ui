@@ -20,8 +20,8 @@ from routes.git_routes import get_default_branch, get_main_repo_path
 from routes.venv_routes import _recreate_venv_sync
 from scheduler import config
 from utils.dbt_utils import get_dbt_env
-from utils.subprocess_utils import git_askpass_env, run_command, run_git_command
-from utils.venv_utils import get_venv_dbt_path, get_venv_path
+from utils.subprocess_utils import child_env, git_askpass_env, run_command, run_git_command
+from utils.venv_utils import get_venv_dbt_path, get_venv_path, venv_python_usable
 
 GIT_TIMEOUT = 120
 DEPS_TIMEOUT = 600
@@ -76,6 +76,18 @@ def _git_env(git_creds: Optional[Dict[str, str]]):
     if git_creds and git_creds.get("username") and git_creds.get("password"):
         return git_askpass_env(git_creds["username"], git_creds["password"])
     return nullcontext(None)
+
+
+def remote_readable_without_credentials(repo: Path) -> bool:
+    """Whether origin can be read with no stored credentials (public repo, or no origin at all)."""
+    if not _has_origin(repo):
+        return True
+    env = child_env()
+    env.update({"GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "", "SSH_ASKPASS": ""})
+    try:
+        return run_git_command(["ls-remote", "--heads", "origin"], repo, timeout=GIT_TIMEOUT, env=env).success
+    except subprocess.TimeoutExpired:
+        return False
 
 
 def fetch_default_branch(repo: Path, branch: str, git_creds: Optional[Dict[str, str]]) -> None:
@@ -184,9 +196,8 @@ def _has_package_file(project_dir: Path) -> bool:
 
 
 def venv_python_ok(project_dir: Path) -> bool:
-    """False when the venv's interpreter link is broken, e.g. the uv-managed Python it was built
-    with lived in the container filesystem and is gone after the container was recreated."""
-    return (get_venv_path(project_dir) / "bin" / "python").exists()
+    """False when the venv's Python is gone or is now another version (see venv_python_usable)."""
+    return venv_python_usable(project_dir)
 
 
 def ensure_environment(

@@ -35,6 +35,7 @@ const SCHEDULER_OPEN_KEY = 'scheduler-open'
 
 function MainLayout({ projectPath, dbtVersion: initialDbtVersion, onChangeProject }: MainLayoutProps) {
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [selectedIsFolder, setSelectedIsFolder] = useState(false)
   const [showSidebar, setShowSidebar] = useState(true)
   const [showMetadata, setShowMetadata] = useState(true)
   const [compilationTrigger, setCompilationTrigger] = useState(0)
@@ -371,6 +372,21 @@ function MainLayout({ projectPath, dbtVersion: initialDbtVersion, onChangeProjec
     }
   }
 
+  // Selection from the file tree; isFolder comes from the backend tree (file vs directory)
+  const handleFileSelect = (file: string, isFolder = false) => {
+    setSelectedFile(file)
+    setSelectedIsFolder(isFolder)
+  }
+
+  // Opening a file from the lineage graph / env vars: ask before discarding unsaved edits
+  const handleOpenFile = (file: string) => {
+    if (file === selectedFile && !selectedIsFolder) return
+    checkUnsavedChangesAndProceed('opening another file', () => handleFileSelect(file))
+  }
+
+  // The editor and properties panel only show files; a selected folder clears them
+  const editorFile = selectedIsFolder ? null : selectedFile
+
   const handleUnsavedChangesClose = () => {
     setShowUnsavedChangesModal(false)
     setPendingAction(null)
@@ -575,7 +591,8 @@ function MainLayout({ projectPath, dbtVersion: initialDbtVersion, onChangeProjec
           <Pane minSize="200px" maxSize="600px" defaultSize="300px">
             <Sidebar
               projectPath={projectPath}
-              onFileSelect={setSelectedFile}
+              onFileSelect={handleFileSelect}
+              onCheckUnsavedChanges={checkUnsavedChangesAndProceed}
               selectedFile={selectedFile}
               onToggle={() => setShowSidebar(false)}
               onChangeProject={onChangeProject}
@@ -606,7 +623,7 @@ function MainLayout({ projectPath, dbtVersion: initialDbtVersion, onChangeProjec
                   <SplitPane direction="horizontal" primary="second">
                     <Pane>
                       <Editor
-                        selectedFile={selectedFile}
+                        selectedFile={editorFile}
                         projectPath={projectPath}
                         onToggleMetadata={() => setShowMetadata(!showMetadata)}
                         showMetadata={showMetadata}
@@ -616,13 +633,14 @@ function MainLayout({ projectPath, dbtVersion: initialDbtVersion, onChangeProjec
                         onFileModified={handleFileModified}
                         onFileSaved={handleFileSaved}
                         dbtVersion={dbtVersion}
+                        selectedTarget={selectedTarget}
                         onUnsavedChangesStateChange={setHasUnsavedChanges}
                         saveRef={saveRef}
                       />
                     </Pane>
                     <Pane minSize="150px" maxSize="400px" defaultSize="270px">
                       <MetadataSidebar
-                        selectedFile={selectedFile}
+                        selectedFile={editorFile}
                         projectPath={projectPath}
                         compilationTrigger={compilationTrigger}
                       />
@@ -630,7 +648,7 @@ function MainLayout({ projectPath, dbtVersion: initialDbtVersion, onChangeProjec
                   </SplitPane>
                 ) : (
                   <Editor
-                    selectedFile={selectedFile}
+                    selectedFile={editorFile}
                     projectPath={projectPath}
                     onToggleMetadata={() => setShowMetadata(!showMetadata)}
                     showMetadata={showMetadata}
@@ -639,6 +657,8 @@ function MainLayout({ projectPath, dbtVersion: initialDbtVersion, onChangeProjec
                     compilationTrigger={compilationTrigger}
                     onFileModified={handleFileModified}
                     onFileSaved={handleFileSaved}
+                    dbtVersion={dbtVersion}
+                    selectedTarget={selectedTarget}
                     onUnsavedChangesStateChange={setHasUnsavedChanges}
                     saveRef={saveRef}
                   />
@@ -658,7 +678,7 @@ function MainLayout({ projectPath, dbtVersion: initialDbtVersion, onChangeProjec
                 <GraphView
                   projectPath={projectPath}
                   selectedFile={selectedFile}
-                  onNodeClick={setSelectedFile}
+                  onNodeClick={handleOpenFile}
                   compilationTrigger={compilationTrigger}
                   isDbtOperationRunning={isOperationRunning}
                   onDbtRun={handleDbtRun}
@@ -691,7 +711,7 @@ function MainLayout({ projectPath, dbtVersion: initialDbtVersion, onChangeProjec
               <SplitPane direction="horizontal" primary="second">
                 <Pane>
                   <Editor
-                    selectedFile={selectedFile}
+                    selectedFile={editorFile}
                     projectPath={projectPath}
                     onToggleMetadata={() => setShowMetadata(!showMetadata)}
                     showMetadata={showMetadata}
@@ -700,13 +720,15 @@ function MainLayout({ projectPath, dbtVersion: initialDbtVersion, onChangeProjec
                     compilationTrigger={compilationTrigger}
                     onFileModified={handleFileModified}
                     onFileSaved={handleFileSaved}
+                    dbtVersion={dbtVersion}
+                    selectedTarget={selectedTarget}
                     onUnsavedChangesStateChange={setHasUnsavedChanges}
                     saveRef={saveRef}
                   />
                 </Pane>
                 <Pane minSize="150px" maxSize="400px" defaultSize="270px">
                   <MetadataSidebar
-                    selectedFile={selectedFile}
+                    selectedFile={editorFile}
                     projectPath={projectPath}
                     compilationTrigger={compilationTrigger}
                   />
@@ -714,7 +736,7 @@ function MainLayout({ projectPath, dbtVersion: initialDbtVersion, onChangeProjec
               </SplitPane>
             ) : (
               <Editor
-                selectedFile={selectedFile}
+                selectedFile={editorFile}
                 projectPath={projectPath}
                 onToggleMetadata={() => setShowMetadata(!showMetadata)}
                 showMetadata={showMetadata}
@@ -723,6 +745,8 @@ function MainLayout({ projectPath, dbtVersion: initialDbtVersion, onChangeProjec
                 compilationTrigger={compilationTrigger}
                 onFileModified={handleFileModified}
                 onFileSaved={handleFileSaved}
+                dbtVersion={dbtVersion}
+                selectedTarget={selectedTarget}
                 onUnsavedChangesStateChange={setHasUnsavedChanges}
                 saveRef={saveRef}
               />
@@ -742,7 +766,7 @@ function MainLayout({ projectPath, dbtVersion: initialDbtVersion, onChangeProjec
             <GraphView
               projectPath={projectPath}
               selectedFile={selectedFile}
-              onNodeClick={setSelectedFile}
+              onNodeClick={handleOpenFile}
               compilationTrigger={compilationTrigger}
               isDbtOperationRunning={isOperationRunning}
               onDbtRun={handleDbtRun}

@@ -62,8 +62,9 @@ function EnvVarsModal({ projectPath, onClose, onFileClick }: EnvVarsModalProps) 
       // Merge scanned vars with current values
       const merged: EnvVarWithValue[] = scanData.env_vars.map((envVar: EnvVarInfo) => ({
         ...envVar,
-        currentValue: currentData.env_vars[envVar.name] || envVar.default_value || '',
-        editedValue: currentData.env_vars[envVar.name] || envVar.default_value || '',
+        // Not pre-filled with the default: an empty value stays unset, so dbt uses the project's default
+        currentValue: currentData.env_vars[envVar.name] || '',
+        editedValue: currentData.env_vars[envVar.name] || '',
       }))
 
       setEnvVars(merged)
@@ -198,7 +199,7 @@ function EnvVarsModal({ projectPath, onClose, onFileClick }: EnvVarsModalProps) 
                       type="text"
                       value={envVar.editedValue}
                       onChange={e => handleValueChange(envVar.name, e.target.value)}
-                      placeholder="Enter value..."
+                      placeholder={envVar.default_value ? `Empty: uses the default (${envVar.default_value})` : 'Enter value...'}
                       className={envVar.currentValue !== envVar.editedValue ? 'modified' : ''}
                     />
                   </div>

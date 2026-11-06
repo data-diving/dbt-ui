@@ -15,6 +15,7 @@
     "@types/react-split-pane": "^0.1.10",
     "dagre": "^0.8.5",
     "lucide-react": "^0.294.0",
+    "monaco-editor": "^0.55.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-markdown": "^9.0.1",

@@ -38,7 +38,8 @@ export function useFileContent(
       return
     }
 
-    const isFolder = !selectedFile.includes('.') || selectedFile.endsWith('/')
+    // Folders are never passed in (MainLayout passes null); a trailing slash is the only path-based hint
+    const isFolder = selectedFile.endsWith('/')
     if (isFolder) {
       console.log('[Editor] Folder selected, not loading:', selectedFile)
       setContent('')

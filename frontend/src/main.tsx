@@ -1,4 +1,5 @@
 import ReactDOM from 'react-dom/client'
+import './config/monaco'
 import App from './App.tsx'
 import './index.css'
 

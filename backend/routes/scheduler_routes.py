@@ -533,7 +533,18 @@ def update_job(job_id: int, body: JobUpdateRequest, request: Request):
             job.env_encrypted = (
                 encrypt_dict(get_env_vars_from_cookie(request, body.path)) if job.credentials_mode == "user" else ""
             )
-            job.git_creds_encrypted = encrypt_dict(git_creds) if git_creds else ""
+            # Git credentials are always personal (project credentials hold only env vars), and only
+            # jobs that fetch the latest commit use them. Without credentials of their own, the
+            # editor can change the job only if the repository can be read without any.
+            if (job.pull_latest and job.git_creds_encrypted and not git_creds
+                    and not checkout.remote_readable_without_credentials(Path(project.repo_path))):
+                raise HTTPException(
+                    status_code=400,
+                    detail="This job fetches from a private repository with the git credentials of the person "
+                           "who last changed it. Changing the job replaces them with yours, and you have none "
+                           "saved: save your git credentials in the Git dialog first, then save the job again.",
+                )
+            job.git_creds_encrypted = encrypt_dict(git_creds) if git_creds and job.pull_latest else ""
         sync_scheduled_run(session, job)
         needs_prepare = job.checkout_state != "ready"
         session.flush()
@@ -949,7 +960,9 @@ def test_notification_channel(channel_id: int, body: PathRequest, request: Reque
                 "job_name": "example job", "run_id": "0", "status": "failed", "command": "build",
                 "select": "tag:daily", "target": "", "full_refresh": "false", "scheduled_for": now, "run_at": now,
                 "duration": "1m 5s", "author": project.git_user_name, "trigger": "schedule", "commit": "0000000",
-                "error": "Test notification from dbt UI", "run_url": notify.run_url(0),
+                "error": "Test notification from dbt UI",
+                # There is no run to link to: the link opens dbt UI
+                "run_url": notify.app_url(),
             }
         session.expunge(channel)
     error = notify.send(channel, values)

@@ -15,12 +15,8 @@ FastAPI backend server that provides file system access for the dbt-ui web appli
 ## Installation
 
 ```bash
-# Create virtual environment
-uv venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install dependencies
-uv pip install -r requirements.txt
+# Create .venv and install the dependencies from uv.lock (including the dev group for tests)
+uv sync
 ```
 
 ## Running the Server
@@ -93,15 +89,19 @@ When running in Docker, the backend uses a volume mount (configured in `docker-c
 
 | Mount Path | Environment Variable | Default | Description |
 |------------|---------------------|---------|-------------|
-| `/home/dbtui/git-repos` | `GIT_REPOS_PATH` | `./git-repos` | Git repositories (cloned from URLs or existing local repos) |
+| `/home/dbtui/git-repos` | `DBT_UI__GIT_REPOS_PATH` | `./git-repos` | Git repositories (cloned from URLs or existing local repos) |
 
 To use existing git repositories from your host machine:
 
 ```bash
-GIT_REPOS_PATH=/path/to/your/repos docker compose up --build
+DBT_UI__GIT_REPOS_PATH=/path/to/your/repos docker compose up --build
 ```
+
+Outside Docker, the backend itself reads `GIT_REPOS_PATH` (default `~/git-repos`) for where repositories live.
 
 ## API Documentation
 
 Visit `http://localhost:8000/docs` for interactive API documentation (Swagger UI)
 Visit `http://localhost:8000/redoc` for alternative documentation
+
+In Docker, port 8000 is published on `127.0.0.1` only; browsers reach the API through the frontend (`/api/`).

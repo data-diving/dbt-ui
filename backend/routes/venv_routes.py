@@ -1,26 +1,54 @@
 """Virtual environment management API routes."""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 import subprocess
 import asyncio
 import shutil
 import yaml
 import re
+from packaging.specifiers import InvalidSpecifier, SpecifierSet
 
 from models import ProjectPath
 from utils.venv_utils import (
     get_venv_path, ensure_venv_exists,
-    get_venv_python_path, get_venv_dbt_path
+    get_venv_python_path, get_venv_dbt_path, venv_python_usable
 )
 from utils.dbt_utils import get_dbt_env
+from routes.env_routes import get_env_vars_from_cookie
 from utils.operation_lock import acquire_lock, release_lock, get_lock_status
 from utils.subprocess_utils import run_command
 
 router = APIRouter()
 
 
-def _recreate_venv_sync(project_path: ProjectPath):
+def dbt_core_requirement(require_dbt_version) -> str:
+    """The pip requirement for dbt-core that satisfies dbt_project.yml's require-dbt-version.
+
+    dbt accepts one constraint or a list of them, each ">=1.5.0", "<2.0.0", "=1.8.0" or an exact
+    "1.8.0"; all of them must hold. Unparseable values fall back to the latest dbt-core.
+    """
+    if not require_dbt_version:
+        return "dbt-core"
+    items = require_dbt_version if isinstance(require_dbt_version, list) else [require_dbt_version]
+    specifiers = []
+    for item in items:
+        spec = str(item).strip().replace(" ", "")
+        if not spec:
+            continue
+        if spec[0].isdigit():
+            spec = f"=={spec}"
+        elif spec.startswith("=") and not spec.startswith("=="):
+            spec = f"={spec}"
+        specifiers.append(spec)
+    try:
+        return f"dbt-core{SpecifierSet(','.join(specifiers))}" if specifiers else "dbt-core"
+    except InvalidSpecifier:
+        print(f"[recreate-venv] Ignoring unparseable require-dbt-version: {require_dbt_version!r}")
+        return "dbt-core"
+
+
+def _recreate_venv_sync(project_path: ProjectPath, env_vars: Optional[Dict[str, str]] = None):
     """Synchronous helper for recreating venv - runs in thread pool."""
     # Collect output logs
     output_lines = []
@@ -87,7 +115,8 @@ def _recreate_venv_sync(project_path: ProjectPath):
             result = run_command(
                 ["uv", "pip", "install", "-r", str(requirements_file), "--python", str(venv_python), "--upgrade"],
                 path,
-                timeout=300
+                timeout=300,
+                low_priority=True,
             )
 
             if not result.success:
@@ -112,30 +141,7 @@ def _recreate_venv_sync(project_path: ProjectPath):
     require_dbt_version = dbt_config.get('require-dbt-version')
 
     # Determine which dbt version to install
-    dbt_core_spec = "dbt-core"
-    if require_dbt_version:
-        if isinstance(require_dbt_version, list):
-            version_spec = require_dbt_version[0]
-        else:
-            version_spec = require_dbt_version
-
-        version_spec = version_spec.strip()
-
-        if version_spec.startswith('>='):
-            version = version_spec[2:].strip()
-            dbt_core_spec = f"dbt-core>={version}"
-        elif version_spec.startswith('='):
-            version = version_spec[1:].strip()
-            dbt_core_spec = f"dbt-core=={version}"
-        elif version_spec.startswith('<'):
-            version = version_spec[1:].strip()
-            dbt_core_spec = f"dbt-core<{version}"
-        else:
-            try:
-                float(version_spec.replace('.', '', 1))
-                dbt_core_spec = f"dbt-core=={version_spec}"
-            except ValueError:
-                dbt_core_spec = f"dbt-core{version_spec}"
+    dbt_core_spec = dbt_core_requirement(require_dbt_version)
 
     output_lines.append(f"Installing {dbt_core_spec}...")
     print(f"[recreate-venv] Installing dbt-core with spec: {dbt_core_spec}")
@@ -144,7 +150,8 @@ def _recreate_venv_sync(project_path: ProjectPath):
     result = run_command(
         ["uv", "pip", "install", dbt_core_spec, "--python", str(venv_python)],
         path,
-        timeout=300
+        timeout=300,
+        low_priority=True,
     )
 
     if not result.success:
@@ -183,14 +190,15 @@ def _recreate_venv_sync(project_path: ProjectPath):
         try:
             dbt_executable = get_venv_dbt_path(path)
 
-            # Get environment with dbt-ui env vars loaded (if any exist)
-            env = get_dbt_env(path)
+            # With the user's env vars: profiles.yml and packages.yml may use env_var()
+            env = get_dbt_env(path, env_vars)
 
             deps_result = run_command(
                 [str(dbt_executable), "deps", "--project-dir", str(path), "--profiles-dir", str(path)],
                 path,
                 timeout=300,
-                env=env
+                env=env,
+                low_priority=True,
             )
 
             if not deps_result.success:
@@ -320,7 +328,7 @@ def _recreate_venv_sync(project_path: ProjectPath):
 
 
 @router.post("/api/recreate-venv")
-async def recreate_venv(project_path: ProjectPath):
+async def recreate_venv(project_path: ProjectPath, request: Request):
     """Delete existing venv and recreate it with all dependencies."""
     path = Path(project_path.path).expanduser().resolve()
     path_str = str(path)
@@ -342,7 +350,8 @@ async def recreate_venv(project_path: ProjectPath):
 
     try:
         # Run the blocking operation in a thread pool to avoid blocking the event loop
-        result = await asyncio.to_thread(_recreate_venv_sync, project_path)
+        env_vars = get_env_vars_from_cookie(request, str(path))
+        result = await asyncio.to_thread(_recreate_venv_sync, project_path, env_vars)
         return result
     except HTTPException:
         raise
@@ -361,7 +370,8 @@ async def check_venv(project_path: ProjectPath):
         raise HTTPException(status_code=404, detail="Project path does not exist")
 
     venv_path = get_venv_path(path)
-    venv_exists = venv_path.exists()
+    # A venv whose Python is gone or changed version counts as missing: the UI then offers to create it
+    venv_exists = venv_path.exists() and venv_python_usable(path)
 
     # Also check if dbt is installed in the venv
     dbt_installed = False
