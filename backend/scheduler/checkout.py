@@ -144,9 +144,11 @@ def prepare_checkout(job_id: int, repo: Path, subdirectory: str, sha: str) -> Pa
         result = run_git_command(["checkout", "--detach", "--force", sha], root, timeout=GIT_TIMEOUT)
         if not result.success:
             raise RuntimeError(f"Failed to check out {sha[:12]}:\n{result.error}")
-        # Remove leftovers from previous runs but keep the expensive environment
+        # Remove leftovers from previous runs but keep the expensive environment. An untracked
+        # package-lock.yml stays with dbt_packages: without it dbt rejects the installed packages
+        # when they include transitive dependencies ("expects 1 package(s) ... found only 2").
         run_git_command(
-            ["clean", "-fdx", "-e", ".dbt-ui-venv", "-e", "dbt_packages"],
+            ["clean", "-fdx", "-e", ".dbt-ui-venv", "-e", "dbt_packages", "-e", "package-lock.yml"],
             root, timeout=GIT_TIMEOUT,
         )
 
