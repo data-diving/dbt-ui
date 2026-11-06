@@ -20,7 +20,8 @@ from utils.input_validation import (
     validate_git_user_name, validate_git_user_email, validate_git_branch_name,
     validate_file_path, validate_commit_message
 )
-from utils.subprocess_utils import run_command, run_git_command, git_askpass_env
+from utils.cookies import is_https
+from utils.subprocess_utils import run_command, run_git_command, git_askpass_env, child_env
 
 router = APIRouter()
 
@@ -51,7 +52,7 @@ def get_git_credentials_from_cookie(request: Request, git_root: str) -> dict:
         return {}
 
 
-def set_git_credentials_cookie(response: Response, git_root: str, username: str, password: str):
+def set_git_credentials_cookie(response: Response, git_root: str, username: str, password: str, secure: bool = False):
     """Store git credentials in HttpOnly cookie."""
     cookie_name = get_git_creds_cookie_name(git_root)
     creds = {"username": username, "password": password}
@@ -64,7 +65,7 @@ def set_git_credentials_cookie(response: Response, git_root: str, username: str,
         max_age=GIT_CREDS_COOKIE_MAX_AGE,
         httponly=True,
         samesite="lax",
-        secure=False,  # Set to True in production with HTTPS
+        secure=secure,  # only sent over HTTPS when dbt UI is opened over HTTPS
     )
 
 
@@ -333,7 +334,7 @@ async def clone_git_repo(git_repo: GitRepoUrl, http_request: Request, response: 
     # Fetching with this user's credentials also verifies they can access the repository.
     if (clone_path / ".git").exists():
         try:
-            env = os.environ.copy()
+            env = child_env()
             env["GIT_TERMINAL_PROMPT"] = "0"
             if username and password and actual_git_url.startswith("https://"):
                 with git_askpass_env(username, password, env) as askpass_env:
@@ -362,7 +363,7 @@ async def clone_git_repo(git_repo: GitRepoUrl, http_request: Request, response: 
             print(f"[clone-git-repo] Could not fast-forward {clone_path}: {ff_result.error.strip()}")
 
         if git_repo.save_credentials and username and password and actual_git_url.startswith("https://"):
-            set_git_credentials_cookie(response, str(clone_path), username, password)
+            set_git_credentials_cookie(response, str(clone_path), username, password, secure=is_https(http_request))
 
         return {
             "valid": True,
@@ -383,7 +384,7 @@ async def clone_git_repo(git_repo: GitRepoUrl, http_request: Request, response: 
 
     # Clone the repository
     try:
-        env = os.environ.copy()
+        env = child_env()
         env["GIT_TERMINAL_PROMPT"] = "0"
 
         # If credentials available and using HTTPS, use GIT_ASKPASS for secure credential passing
@@ -417,7 +418,7 @@ async def clone_git_repo(git_repo: GitRepoUrl, http_request: Request, response: 
 
         # Save credentials to cookie on success (if flag is set and credentials were provided)
         if git_repo.save_credentials and username and password and actual_git_url.startswith("https://"):
-            set_git_credentials_cookie(response, str(clone_path), username, password)
+            set_git_credentials_cookie(response, str(clone_path), username, password, secure=is_https(http_request))
 
         return {
             "valid": True,
@@ -605,7 +606,13 @@ async def setup_worktree(request: SetupWorktreeRequest):
         if not git_root_result.success:
             raise HTTPException(status_code=400, detail="Not a git repository")
 
-        git_root = Path(git_root_result.stdout.strip())
+        git_root = Path(git_root_result.stdout.strip()).resolve()
+
+        # The dbt project's folder inside the repository: given explicitly (URLs with /tree/...),
+        # or the opened path itself when it is a subfolder of the repository (local paths)
+        subdirectory = (request.subdirectory or "").strip().strip("/")
+        if not subdirectory and repo_path != git_root and git_root in repo_path.parents:
+            subdirectory = repo_path.relative_to(git_root).as_posix()
 
         # Create sanitized branch name (already uses sanitize_branch_name which is safe)
         sanitized_name = sanitize_branch_name(user_name)
@@ -675,7 +682,11 @@ async def setup_worktree(request: SetupWorktreeRequest):
         print(f"[setup-worktree] Configured git user: {user_name} <{user_email}>")
 
         # If a subdirectory was specified, return the path including it
-        final_path = worktree_path / request.subdirectory if request.subdirectory else worktree_path
+        final_path = worktree_path
+        if subdirectory:
+            final_path = (worktree_path / subdirectory).resolve()
+            if worktree_path.resolve() not in final_path.parents:
+                raise HTTPException(status_code=400, detail="Invalid project subdirectory")
 
         return {
             "success": True,
@@ -1201,7 +1212,7 @@ async def git_push(request: GitPushPullRequest, http_request: Request, response:
         remote_url = remote_url_result.stdout.strip() if remote_url_result.success else ""
 
         # Build environment with credentials if provided
-        env = os.environ.copy()
+        env = child_env()
 
         # Get credentials - either from request or stored (if use_stored is true)
         username = request.username
@@ -1263,7 +1274,7 @@ async def git_push(request: GitPushPullRequest, http_request: Request, response:
 
         # Save credentials to cookie on success (if flag is set and credentials were provided)
         if request.save_credentials and username and password and remote_url.startswith("https://"):
-            set_git_credentials_cookie(response, main_repo_path, username, password)
+            set_git_credentials_cookie(response, main_repo_path, username, password, secure=is_https(http_request))
 
         return {
             "success": True,
@@ -1313,7 +1324,7 @@ async def git_pull(request: GitPushPullRequest, http_request: Request, response:
         remote_url_result = run_git_command(['remote', 'get-url', 'origin'], path, git_root, timeout=5)
         remote_url = remote_url_result.stdout.strip() if remote_url_result.success else ""
 
-        env = os.environ.copy()
+        env = child_env()
 
         # Get credentials - either from request or stored (if use_stored is true)
         username = request.username
@@ -1375,7 +1386,7 @@ async def git_pull(request: GitPushPullRequest, http_request: Request, response:
 
         # Save credentials to cookie on success (if flag is set and credentials were provided)
         if request.save_credentials and username and password and remote_url.startswith("https://"):
-            set_git_credentials_cookie(response, main_repo_path, username, password)
+            set_git_credentials_cookie(response, main_repo_path, username, password, secure=is_https(http_request))
 
         return {
             "success": True,

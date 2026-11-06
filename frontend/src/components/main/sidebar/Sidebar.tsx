@@ -20,7 +20,8 @@ const GIT_OPEN_KEY = 'git-dialog-open'
 
 function Sidebar({
   projectPath,
-  onFileSelect,
+  onFileSelect: onFileSelectProp,
+  onCheckUnsavedChanges,
   selectedFile,
   onToggle,
   onChangeProject,
@@ -46,6 +47,16 @@ function Sidebar({
   const [selectedIsFolder, setSelectedIsFolder] = useState(false)
   const [selectedIsDeleted, setSelectedIsDeleted] = useState(false)
   const [selectedDeletedFile, setSelectedDeletedFile] = useState<string | null>(null)
+
+  // Keep the local folder flag in sync with every selection change (create, rename, move, ...)
+  const onFileSelect = (file: string, isFolder = false) => {
+    setSelectedIsFolder(isFolder)
+    onFileSelectProp(file, isFolder)
+  }
+  const withUnsavedCheck = (action: string, callback: () => void) => {
+    if (onCheckUnsavedChanges) onCheckUnsavedChanges(action, callback)
+    else callback()
+  }
 
   // Drag state
   const [dragState, setDragState] = useState<DragState>({
@@ -189,15 +200,22 @@ function Sidebar({
 
   // Selection handlers
   const handleSelectFile = (path: string, isFolder: boolean, isDeleted: boolean) => {
-    if (isDeleted) {
-      onFileSelect('')
-      setSelectedDeletedFile(path)
-    } else {
-      setSelectedDeletedFile(null)
-      onFileSelect(path)
+    const select = () => {
+      if (isDeleted) {
+        onFileSelect('', isFolder)
+        setSelectedDeletedFile(path)
+      } else {
+        setSelectedDeletedFile(null)
+        onFileSelect(path, isFolder)
+      }
+      setSelectedIsDeleted(isDeleted)
     }
-    setSelectedIsFolder(isFolder)
-    setSelectedIsDeleted(isDeleted)
+    // Re-clicking the open file never discards anything
+    if (!isDeleted && path === selectedFile) {
+      select()
+    } else {
+      withUnsavedCheck(isFolder ? 'leaving this file' : 'opening another file', select)
+    }
   }
 
   // Drag handlers
@@ -261,11 +279,11 @@ function Sidebar({
     if (draggedItem && draggedItem.path !== itemPath) {
       if (isFolder) {
         if (!nodePath.startsWith(draggedItem.path + '/')) {
-          handleMoveFile(draggedItem.path, nodePath)
+          handleMoveFile(draggedItem.path, nodePath, draggedItem.isFolder)
         }
       } else {
         const targetDir = itemPath?.includes('/') ? itemPath.substring(0, itemPath.lastIndexOf('/')) : ''
-        handleMoveFile(draggedItem.path, targetDir)
+        handleMoveFile(draggedItem.path, targetDir, draggedItem.isFolder)
       }
     }
   }
@@ -284,7 +302,7 @@ function Sidebar({
         branchName={branchName}
         selectedFile={selectedFile}
         selectedIsDeleted={selectedIsDeleted}
-        onCreateFile={handleCreateFile}
+        onCreateFile={() => withUnsavedCheck('creating a new file', handleCreateFile)}
         onRenameClick={() => selectedFile && setShowRenameModal(true)}
         onDeleteClick={() => selectedFile && setShowDeleteModal(true)}
         onRestoreClick={() => selectedDeletedFile && handleRestoreFile(selectedDeletedFile)}
@@ -335,7 +353,7 @@ function Sidebar({
                 e.preventDefault()
                 e.stopPropagation()
                 if (dragState.draggedItem) {
-                  handleMoveFile(dragState.draggedItem.path, '')
+                  handleMoveFile(dragState.draggedItem.path, '', dragState.draggedItem.isFolder)
                 }
                 setDragState({
                   draggedItem: null,

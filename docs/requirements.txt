@@ -1,0 +1,3 @@
+# Documentation site (https://dbt-ui.data-diving.com/), built by .github/workflows/docs.yml
+# Zensical reads mkdocs.yml. Local preview: pip install -r docs/requirements.txt && zensical serve
+zensical==0.1.0

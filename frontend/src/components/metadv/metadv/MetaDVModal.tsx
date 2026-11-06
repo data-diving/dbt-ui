@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { X, Database, Save, CheckCircle, AlertTriangle, AlertCircle, FileCode, Copy, ChevronDown, ChevronUp } from 'lucide-react'
 import { apiUrl, apiFetch } from '../../../config/api'
 import '../MetaDVModal.css'
+import UnsavedChangesModal from '../../main/UnsavedChangesModal'
 
 import { MetaDVModalProps, SourceGroup, SourceColumn, Target, Connection, DeleteConfirmDialogState, CONNECTION_TYPE_COLORS, HoverHighlight, TargetAttribute, MetaDVData } from './types'
 import { getColumnKey, getColumnNameFromColumnKey } from './utils'
@@ -57,6 +58,7 @@ function MetaDVModal({ projectPath, onClose, selectedDbtTarget, onRefreshTree }:
 
   // Generate dialog state
   const [showSaveBeforeGenerateDialog, setShowSaveBeforeGenerateDialog] = useState(false)
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
 
   // Drag state
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null)
@@ -377,20 +379,41 @@ function MetaDVModal({ projectPath, onClose, selectedDbtTarget, onRefreshTree }:
     }
   }, [loading, data, buildConnectionsFromData, setConnections])
 
+  // Close the dialog, asking first if there are unsaved changes
+  const requestClose = useCallback(() => {
+    if (hasUnsavedChanges) {
+      setShowCloseConfirm(true)
+    } else {
+      onClose()
+    }
+  }, [hasUnsavedChanges, onClose])
+
+  const handleSaveAndClose = async () => {
+    setShowCloseConfirm(false)
+    // On a failed save the dialog stays open so the error is visible
+    if (await handleSave(connections)) {
+      onClose()
+    }
+  }
+
   // Handle Escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (showCloseConfirm) {
+          // The confirmation handles its own Escape (cancel)
+          return
+        }
         if (pendingConnection) {
           setPendingConnection(null)
         } else {
-          onClose()
+          requestClose()
         }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose, pendingConnection])
+  }, [requestClose, pendingConnection, showCloseConfirm])
 
   // Filter source columns
   const filteredSourceColumns = useMemo(() => {
@@ -724,13 +747,13 @@ function MetaDVModal({ projectPath, onClose, selectedDbtTarget, onRefreshTree }:
   }
 
   return (
-    <div className="metadv-modal-overlay" onClick={onClose}>
+    <div className="metadv-modal-overlay" onClick={requestClose}>
       <div className="metadv-modal" onClick={(e) => e.stopPropagation()}>
         <div className="metadv-modal-header">
           <Database size={20} />
           <h2>MetaDV - Metadata</h2>
           {hasUnsavedChanges && <span className="metadv-unsaved-indicator">Unsaved changes</span>}
-          <button className="metadv-close-btn" onClick={onClose} title="Close">
+          <button className="metadv-close-btn" onClick={requestClose} title="Close">
             <X size={18} />
           </button>
         </div>
@@ -976,7 +999,7 @@ function MetaDVModal({ projectPath, onClose, selectedDbtTarget, onRefreshTree }:
               <Save size={14} />
               {saving ? 'Saving...' : 'Save'}
             </button>
-            <button className="metadv-btn-secondary" onClick={onClose}>
+            <button className="metadv-btn-secondary" onClick={requestClose}>
               Close
             </button>
           </div>
@@ -990,6 +1013,18 @@ function MetaDVModal({ projectPath, onClose, selectedDbtTarget, onRefreshTree }:
           onGenerateWithoutSaving={handleGenerateWithoutSaving}
           onCancel={handleCancelGenerate}
         />
+
+        {showCloseConfirm && (
+          <UnsavedChangesModal
+            action="closing MetaDV"
+            onClose={() => setShowCloseConfirm(false)}
+            onSave={handleSaveAndClose}
+            onDiscard={() => {
+              setShowCloseConfirm(false)
+              onClose()
+            }}
+          />
+        )}
       </div>
     </div>
   )

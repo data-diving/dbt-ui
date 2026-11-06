@@ -9,6 +9,8 @@ import base64
 import hashlib
 
 from models import EnvVarsRequest, SetEnvVarsRequest
+from utils.cookies import is_https
+from utils.subprocess_utils import child_env
 from utils.venv_utils import get_venv_path
 
 router = APIRouter()
@@ -42,7 +44,7 @@ def get_env_vars_from_cookie(request: Request, project_path: str) -> Dict[str, s
         return {}
 
 
-def set_env_vars_cookie(response: Response, project_path: str, env_vars: Dict[str, str]):
+def set_env_vars_cookie(response: Response, project_path: str, env_vars: Dict[str, str], secure: bool = False):
     """Set environment variables in HttpOnly cookie."""
     cookie_name = get_cookie_name(project_path)
 
@@ -56,7 +58,7 @@ def set_env_vars_cookie(response: Response, project_path: str, env_vars: Dict[st
         max_age=COOKIE_MAX_AGE,
         httponly=True,
         samesite="lax",
-        secure=False,  # Set to True in production with HTTPS
+        secure=secure,  # only sent over HTTPS when dbt UI is opened over HTTPS
     )
 
 
@@ -74,9 +76,14 @@ async def scan_env_vars(request: EnvVarsRequest):
         'dbt_packages', 'logs', 'py_cache'
     }
 
-    # Patterns to match env var references in dbt/Jinja
-    # {{ env_var('VAR_NAME') }} or {{ env_var("VAR_NAME") }} or {{ env_var('VAR_NAME', 'default') }}
-    env_var_pattern = re.compile(r"""\{\{\s*env_var\s*\(\s*['"]([^'"]+)['"]""", re.IGNORECASE)
+    # env_var('NAME') / env_var("NAME", 'default') anywhere in Jinja: {{ ... }}, {{- ... -}},
+    # {% ... %}, nested in other calls or expressions, with quotes escaped inside a double-quoted YAML
+    # string (env_var(\"NAME\")). Group 2 is the name, group 4 a literal default.
+    env_var_pattern = re.compile(
+        r"""\benv_var\s*\(\s*\\?(['"])([^'"\\]+)\\?\1(?:\s*,\s*\\?(['"])(.*?)\\?\3)?""", re.IGNORECASE
+    )
+    # Values the backend itself has, without dbt UI's own settings (never send those to the browser)
+    backend_env = child_env()
 
     found_env_vars: Dict[str, Dict] = {}
 
@@ -86,14 +93,16 @@ async def scan_env_vars(request: EnvVarsRequest):
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
 
-            matches = env_var_pattern.findall(content)
-            for var_name in matches:
+            for _, var_name, _, default in env_var_pattern.findall(content):
                 if var_name not in found_env_vars:
                     found_env_vars[var_name] = {
                         "name": var_name,
                         "files": [],
-                        "current_value": os.environ.get(var_name, "")
+                        "current_value": backend_env.get(var_name, ""),
+                        "default_value": None,
                     }
+                if default and not found_env_vars[var_name]["default_value"]:
+                    found_env_vars[var_name]["default_value"] = default
                 rel_path = str(file_path.relative_to(path))
                 if rel_path not in found_env_vars[var_name]["files"]:
                     found_env_vars[var_name]["files"].append(rel_path)
@@ -152,7 +161,7 @@ async def scan_env_vars(request: EnvVarsRequest):
 
 
 @router.post("/api/set-env-vars")
-async def set_env_vars(request: SetEnvVarsRequest, response: Response):
+async def set_env_vars(request: SetEnvVarsRequest, response: Response, http_request: Request):
     """Set environment variables in HttpOnly cookie (stored per-project)."""
     path = Path(request.path).expanduser().resolve()
 
@@ -166,7 +175,7 @@ async def set_env_vars(request: SetEnvVarsRequest, response: Response):
             sanitized_env_vars[var_name] = var_value
 
     # Store in HttpOnly cookie
-    set_env_vars_cookie(response, str(path), sanitized_env_vars)
+    set_env_vars_cookie(response, str(path), sanitized_env_vars, secure=is_https(http_request))
 
     return {
         "success": True,

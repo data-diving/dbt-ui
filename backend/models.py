@@ -52,6 +52,7 @@ class DbtShowRequest(BaseModel):
     path: str
     model: str
     limit: int = 10
+    target: str = ""  # profiles.yml target; empty = the profile's default
 
 
 class GitTrackedRequest(BaseModel):

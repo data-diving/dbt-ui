@@ -13,11 +13,13 @@ import BranchSection from './components/BranchSection'
 import StagedFiles from './components/StagedFiles'
 import UnstagedChanges from './components/UnstagedChanges'
 import CommitSection from './components/CommitSection'
+import ConfirmModal from '../../main/ConfirmModal'
 
 function GitModal({ projectPath, onClose, onBranchChange, onGitChange, onTreeRefresh }: GitModalProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
+  const [branchToDelete, setBranchToDelete] = useState<string | null>(null)
 
   // Git status hook
   const {
@@ -225,7 +227,7 @@ function GitModal({ projectPath, onClose, onBranchChange, onGitChange, onTreeRef
             onNewBranchNameChange={setNewBranchName}
             onCheckoutBranch={handleBranchCheckout}
             onCreateBranch={handleBranchCreate}
-            onDeleteBranch={handleBranchDelete}
+            onDeleteBranch={setBranchToDelete}
             onPush={handlePushClick}
             onPull={handlePullClick}
             isBranchDisabled={isBranchDisabled}
@@ -292,6 +294,23 @@ function GitModal({ projectPath, onClose, onBranchChange, onGitChange, onTreeRef
             Close
           </button>
         </div>
+
+        {/* Inside .git-modal so its clicks don't reach the overlay and close the Git dialog */}
+        {branchToDelete && (
+          <ConfirmModal
+            onClose={() => setBranchToDelete(null)}
+            onConfirm={() => {
+              const branch = branchToDelete
+              setBranchToDelete(null)
+              handleBranchDelete(branch)
+            }}
+            title="Delete branch"
+            message={`Delete branch "${branchToDelete}" locally and on the remote (origin)? The branch is force-deleted, so any commits not merged into another branch will be lost.`}
+            confirmLabel="Delete branch"
+            cancelLabel="Cancel"
+            variant="danger"
+          />
+        )}
       </div>
 
       {/* Credentials Dialog */}

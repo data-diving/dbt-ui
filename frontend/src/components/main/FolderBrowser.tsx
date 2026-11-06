@@ -2,14 +2,7 @@ import { useState, useEffect } from 'react'
 import { Folder, FolderOpen, ChevronRight, Clock } from 'lucide-react'
 import './FolderBrowser.css'
 import { apiUrl, apiFetch } from '../../config/api'
-
-const RECENT_PROJECTS_KEY = 'dbt-ui-recent-projects'
-const MAX_RECENT_PROJECTS = 3
-
-interface RecentProject {
-  path: string
-  displayPath: string
-}
+import { RecentProject, loadRecentProjects } from './recentProjects'
 
 interface FolderBrowserProps {
   onSelect: (path: string) => void
@@ -29,19 +22,8 @@ function FolderBrowser({ onSelect, onClose }: FolderBrowserProps) {
   const [directories, setDirectories] = useState<Directory[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [recentProjects, setRecentProjects] = useState<RecentProject[]>([])
-
-  // Load recent projects from localStorage
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(RECENT_PROJECTS_KEY)
-      if (stored) {
-        setRecentProjects(JSON.parse(stored))
-      }
-    } catch (e) {
-      console.error('Failed to load recent projects:', e)
-    }
-  }, [])
+  // Recent projects are recorded by App when a project is actually opened
+  const [recentProjects] = useState<RecentProject[]>(loadRecentProjects)
 
   const loadDirectories = async (path?: string) => {
     setLoading(true)
@@ -80,26 +62,13 @@ function FolderBrowser({ onSelect, onClose }: FolderBrowserProps) {
     loadDirectories(directory.path)
   }
 
-  const saveToRecentProjects = (path: string, display: string) => {
-    const newRecent: RecentProject = { path, displayPath: display }
-    const filtered = recentProjects.filter(p => p.path !== path)
-    const updated = [newRecent, ...filtered].slice(0, MAX_RECENT_PROJECTS)
-    setRecentProjects(updated)
-    try {
-      localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(updated))
-    } catch (e) {
-      console.error('Failed to save recent projects:', e)
-    }
-  }
-
   const handleSelectCurrent = () => {
-    saveToRecentProjects(currentPath, displayPath)
     onSelect(currentPath)
   }
 
+  // displayPath is the input the project was opened from (path is its per-user worktree)
   const handleRecentClick = (recent: RecentProject) => {
-    saveToRecentProjects(recent.path, recent.displayPath)
-    onSelect(recent.path)
+    onSelect(recent.displayPath)
   }
 
   return (

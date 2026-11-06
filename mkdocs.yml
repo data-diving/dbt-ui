@@ -1,0 +1,98 @@
+site_name: dbt UI
+site_description: A web-based user interface for dbt-core projects, with a built-in scheduler
+site_url: https://dbt-ui.data-diving.com/
+repo_url: https://github.com/data-diving/dbt-ui
+repo_name: data-diving/dbt-ui
+edit_uri: edit/main/docs/
+copyright: >-
+  dbt UI is not affiliated with, endorsed by, or sponsored by dbt Labs, Inc.
+  dbt and dbt Core are trademarks of dbt Labs, Inc.
+
+docs_dir: docs
+exclude_docs: |
+  requirements.txt
+
+theme:
+  name: material
+  # dbt UI itself is dark-only, so the site opens dark to match the screenshots
+  palette:
+    - scheme: slate
+      primary: blue grey
+      accent: light blue
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+    - scheme: default
+      primary: blue grey
+      accent: light blue
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - navigation.indexes
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - toc.follow
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.keys
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+plugins:
+  - search
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Install with Docker: getting-started/install.md
+      - Open your first project: getting-started/first-project.md
+  - Using dbt UI:
+      - Project browser: using/project-browser.md
+      - Editor: using/editor.md
+      - Show data: using/show-data.md
+      - Env vars: using/env-vars.md
+      - Lineage graph: using/lineage.md
+      - Running dbt: using/running-dbt.md
+      - Git: using/git.md
+      - MetaDV: using/metadv.md
+  - Scheduler:
+      - Overview: scheduler/index.md
+      - Jobs: scheduler/jobs.md
+      - Runs: scheduler/runs.md
+      - Timeline: scheduler/timeline.md
+      - Missed slots and dbt vars: scheduler/catch-up.md
+      - Credentials: scheduler/credentials.md
+      - Failure notifications: scheduler/notifications.md
+      - Settings: scheduler/settings.md
+  - Administration:
+      - Overview: admin/index.md
+      - Configuration reference: admin/configuration.md
+      - Run data in Postgres: admin/postgres.md
+      - Sizing memory and concurrency: admin/sizing.md
+      - Security: admin/security.md
+      - Upgrades and backups: admin/upgrades.md
+      - Troubleshooting: admin/troubleshooting.md
+  - Contributing: contributing.md
+  - FAQ: faq.md

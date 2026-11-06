@@ -4,7 +4,9 @@ import { ReactNode } from 'react'
 
 export interface SidebarProps {
   projectPath: string
-  onFileSelect: (file: string) => void
+  onFileSelect: (file: string, isFolder?: boolean) => void
+  // Runs the callback, first asking to save/discard if the editor has unsaved changes
+  onCheckUnsavedChanges?: (action: string, callback: () => void) => void
   selectedFile: string | null
   onToggle?: () => void
   onChangeProject?: () => void

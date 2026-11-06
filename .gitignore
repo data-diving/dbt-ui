@@ -44,3 +44,12 @@ lerna-debug.log*
 
 # Repositories mounted into the backend container (GIT_REPOS_PATH default)
 git-repos/
+
+# Documentation site build output (Zensical)
+site/
+.cache/
+
+# Docs screenshot tooling: demo stack data and dependencies
+screenshots/.demo/
+screenshots/node_modules/
+screenshots/out/

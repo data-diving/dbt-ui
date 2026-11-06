@@ -1,6 +1,7 @@
 """Virtual environment utility functions."""
 from pathlib import Path
 from typing import Optional
+import re
 import subprocess
 import shutil
 
@@ -10,6 +11,26 @@ from utils.subprocess_utils import run_command
 def get_venv_path(project_path: Path) -> Path:
     """Get the path to the virtual environment for a project."""
     return project_path / ".dbt-ui-venv"
+
+
+def venv_python_usable(project_path: Path) -> bool:
+    """Whether the project's venv can still run: its Python exists and is the version it was built with.
+
+    A venv only links to the Python it was created with. It breaks when that Python is gone (a uv
+    download outside the persistent folders, lost when the container was recreated) or now is
+    another version (the image's Python was upgraded, but the packages were installed for the old one).
+    """
+    venv_path = get_venv_path(project_path)
+    python = venv_path / "bin" / "python"
+    if not python.exists():  # also False for a link to a removed interpreter
+        return (venv_path / "Scripts" / "python.exe").exists()
+    try:
+        cfg = (venv_path / "pyvenv.cfg").read_text(encoding="utf-8")
+    except OSError:
+        return True
+    built = re.search(r"^version(?:_info)?\s*=\s*(\d+)\.(\d+)", cfg, re.MULTILINE)
+    current = re.match(r"python(\d+)\.(\d+)$", python.resolve().name)
+    return not (built and current and built.groups() != current.groups())
 
 
 def ensure_venv_exists(project_path: Path) -> bool:
@@ -22,8 +43,8 @@ def ensure_venv_exists(project_path: Path) -> bool:
 
     # Check if venv already exists
     if venv_path.exists():
-        # Verify it's a valid venv by checking for bin/python or Scripts/python.exe
-        if (venv_path / "bin" / "python").exists() or (venv_path / "Scripts" / "python.exe").exists():
+        # Verify it's a valid venv whose Python still exists in the version it was built with
+        if venv_python_usable(project_path):
             print(f"[ensure_venv_exists] Virtual environment already exists at {venv_path}")
             return True
         else:

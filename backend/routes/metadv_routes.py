@@ -268,7 +268,7 @@ async def metadv_source_columns(request: MetaDVSourceColumnsRequest, http_reques
         env_vars = get_env_vars_from_cookie(http_request, str(path))
         env = get_dbt_env(path, env_vars)
 
-        result = run_command(cmd, path, timeout=120, env=env)
+        result = run_command(cmd, path, timeout=120, env=env, low_priority=True)
 
         print(f"[metadv-source-columns] Return code: {result.returncode}")
 

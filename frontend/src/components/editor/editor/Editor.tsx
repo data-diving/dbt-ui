@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import '../Editor.css'
 
 import { EditorProps, ViewMode } from './types'
+import { previewCacheKey } from './hooks/useModelPreview'
 import { useFileContent } from './hooks/useFileContent'
 import { useFileSave } from './hooks/useFileSave'
 import { useModelPreview } from './hooks/useModelPreview'
@@ -23,6 +24,7 @@ function Editor({
   onFileModified,
   onFileSaved,
   dbtVersion = '',
+  selectedTarget = '',
   onUnsavedChangesStateChange,
   saveRef
 }: EditorProps) {
@@ -123,8 +125,9 @@ function Editor({
     setFormattedJson('')
     setShowPreviewConfirm(false)
 
-    if (selectedFile && previewCache.current.has(selectedFile)) {
-      setModelPreview(previewCache.current.get(selectedFile) || null)
+    const previewKey = selectedFile ? previewCacheKey(selectedTarget, selectedFile) : ''
+    if (previewKey && previewCache.current.has(previewKey)) {
+      setModelPreview(previewCache.current.get(previewKey) || null)
     } else {
       setModelPreview(null)
     }
@@ -132,7 +135,7 @@ function Editor({
     if (viewMode === 'rendered' && isSqlModel && selectedFile && !loading) {
       loadCompiledSql(selectedFile, projectPath || '')
     }
-  }, [selectedFile, loading, isDbtShowSupported])
+  }, [selectedFile, selectedTarget, loading, isDbtShowSupported])
 
   // Reload compiled SQL when compilation completes
   useEffect(() => {
@@ -170,7 +173,7 @@ function Editor({
   const handlePreviewConfirm = () => {
     setShowPreviewConfirm(false)
     if (selectedFile && projectPath) {
-      loadModelPreview(selectedFile, projectPath)
+      loadModelPreview(selectedFile, projectPath, selectedTarget)
     }
   }
 

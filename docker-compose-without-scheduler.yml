@@ -10,8 +10,6 @@ x-shared-env: &shared-env
   # Authentication credentials (optional - if not set, auth is disabled)
   DBT_UI__BACKEND_USER: ${DBT_UI__BACKEND_USER:-}
   DBT_UI__BACKEND_PASSWORD: ${DBT_UI__BACKEND_PASSWORD:-}
-  # Frontend lineage graph settings
-  DBT_UI__FRONTEND_LINEAGE_MAX_NODES: ${DBT_UI__FRONTEND_LINEAGE_MAX_NODES:-200}
   # MetaDV feature toggle (default: true - enabled)
   DBT_UI__METADV_ENABLED: ${DBT_UI__METADV_ENABLED:-true}
   # Git credentials cookie max age in seconds (default: 30 days)
@@ -29,12 +27,17 @@ services:
       context: .
       dockerfile: docker/Dockerfile.backend
     ports:
-      - "8000:8000"
+      # Local access only: browsers reach the API through the frontend (/api/). Use "8000:8000"
+      # to expose it on the network.
+      - "127.0.0.1:8000:8000"
     volumes:
       # Mount for git repositories (cloned or existing local repos)
       - ${DBT_UI__GIT_REPOS_PATH:-./git-repos}:/home/dbtui/git-repos
     environment:
       <<: *shared-env
+      # Timeout in seconds for dbt runs started from the editor
+      DBT_UI__SCHEDULER_MANUAL_TIMEOUT: ${DBT_UI__SCHEDULER_MANUAL_TIMEOUT:-300}
+    restart: unless-stopped
 
   frontend:
     build:
@@ -43,10 +46,10 @@ services:
       args:
         # Build-time args for Vite (baked into the frontend bundle)
         DBT_UI__FRONTEND_LINEAGE_MAX_NODES: ${DBT_UI__FRONTEND_LINEAGE_MAX_NODES:-200}
-        DBT_UI__METADV_ENABLED: ${DBT_UI__METADV_ENABLED:-true}
     ports:
       - "80:80"
     environment:
       <<: *shared-env
     depends_on:
       - backend
+    restart: unless-stopped

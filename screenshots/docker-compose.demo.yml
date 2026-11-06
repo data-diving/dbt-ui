@@ -1,0 +1,27 @@
+# Throwaway dbt UI stack for the docs screenshots (see screenshots/README.md).
+# Runs next to a normal dbt UI: own project name, port 8180, repos under screenshots/.demo/, own data volume.
+#   screenshots/run.sh (sets a throwaway DBT_UI__SCHEDULER_ENCRYPTION_KEY and starts it)
+name: dbtui-demo
+
+x-demo-env: &demo-env
+  DBT_UI__FRONTEND_URL: http://localhost:8180
+  DBT_UI__BACKEND_USER: ""
+  DBT_UI__BACKEND_PASSWORD: ""
+
+services:
+  backend:
+    ports: !reset []
+    volumes: !override
+      - ./screenshots/.demo/git-repos:/home/dbtui/git-repos
+      - dbtui-data:/home/dbtui/data
+    environment:
+      <<: *demo-env
+      DBT_UI__SCHEDULER_MAX_CONCURRENT: "2"
+    restart: !reset no
+
+  frontend:
+    ports: !override
+      - "127.0.0.1:8180:80"
+    environment:
+      <<: *demo-env
+    restart: !reset no

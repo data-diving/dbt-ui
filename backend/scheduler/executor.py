@@ -18,8 +18,8 @@ from typing import Dict, List, Optional
 import psutil
 
 from scheduler.db import utcnow
+from utils.subprocess_utils import lower_process_priority
 
-NICE_INCREMENT = 10
 MEMORY_SAMPLE_SECONDS = 1.0
 MEMORY_PROFILE_POINTS = 30
 # How long dbt gets to cancel its warehouse queries after SIGINT before escalating
@@ -64,21 +64,14 @@ class ExecutionResult:
 
 def _apply_safeguards(pid: int, max_memory_bytes: Optional[int]) -> None:
     """Best-effort resource limits on the freshly started dbt process."""
+    lower_process_priority(pid)
     if sys.platform.startswith("linux"):
-        try:
-            Path(f"/proc/{pid}/oom_score_adj").write_text("1000")
-        except OSError as e:
-            print(f"[scheduler] Could not set oom_score_adj for {pid}: {e}")
         if max_memory_bytes:
             try:
                 import resource
                 resource.prlimit(pid, resource.RLIMIT_AS, (max_memory_bytes, max_memory_bytes))
             except (OSError, ValueError, AttributeError) as e:
                 print(f"[scheduler] Could not set memory limit for {pid}: {e}")
-    try:
-        os.setpriority(os.PRIO_PROCESS, pid, NICE_INCREMENT)
-    except (OSError, AttributeError) as e:
-        print(f"[scheduler] Could not lower priority for {pid}: {e}")
 
 
 class DbtProcess:

@@ -5,7 +5,7 @@ import subprocess
 import json
 import os
 
-from utils.subprocess_utils import run_command
+from utils.subprocess_utils import run_command, child_env
 
 
 def get_dbt_env(project_path: Path, env_vars: Dict[str, str] = None) -> Dict[str, str]:
@@ -16,7 +16,7 @@ def get_dbt_env(project_path: Path, env_vars: Dict[str, str] = None) -> Dict[str
         project_path: Path to the dbt project
         env_vars: Environment variables from HttpOnly cookie (for dbt run/compile/test/seed only)
     """
-    env = os.environ.copy()
+    env = child_env()
 
     # Add terminal settings to prevent line wrapping
     env['COLUMNS'] = '500'

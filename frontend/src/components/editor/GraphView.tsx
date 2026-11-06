@@ -298,7 +298,7 @@ function GraphView({ projectPath, selectedFile, onNodeClick, compilationTrigger,
               onClick={() => setShowMetaDVModal(true)}
               disabled={!hasMetaDVPackage || !projectPath}
               title={!hasMetaDVPackage
-                ? "MetaDV requires the Datavault-UK/automate_dv package. Add it to packages.yml and run dbt deps."
+                ? "MetaDV requires a Data Vault package: Datavault-UK/automate_dv or ScalefreeCOM/datavault4dbt. Add one to packages.yml and run dbt deps."
                 : "Open MetaDV - Metadata"}
             >
               <Database size={14} />

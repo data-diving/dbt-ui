@@ -4,17 +4,11 @@ import FolderBrowser from './FolderBrowser'
 import GitCredentialsDialog from '../git/GitCredentialsDialog'
 import './ProjectPathDialog.css'
 import { apiUrl, apiFetch, cloneGitRepo } from '../../config/api'
+import { RecentProject } from './recentProjects'
 
 interface GitConfig {
   userName: string
   userEmail: string
-}
-
-interface RecentProject {
-  path: string
-  name: string
-  displayPath: string
-  lastOpened: number
 }
 
 interface ProjectPathDialogProps {
