@@ -41,3 +41,6 @@ backend/tests
 docker-compose*.yml
 docs
 *.md
+
+# Docs screenshot tooling and its demo stack
+screenshots
